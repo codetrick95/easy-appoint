@@ -14,7 +14,164 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      agendamentos: {
+        Row: {
+          agendamento_publico: boolean
+          created_at: string
+          data_hora: string
+          duracao_minutos: number
+          email_paciente: string | null
+          id: string
+          nome_paciente: string
+          observacoes: string | null
+          paciente_id: string | null
+          status: Database["public"]["Enums"]["status_agendamento"]
+          telefone_paciente: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agendamento_publico?: boolean
+          created_at?: string
+          data_hora: string
+          duracao_minutos?: number
+          email_paciente?: string | null
+          id?: string
+          nome_paciente: string
+          observacoes?: string | null
+          paciente_id?: string | null
+          status?: Database["public"]["Enums"]["status_agendamento"]
+          telefone_paciente?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agendamento_publico?: boolean
+          created_at?: string
+          data_hora?: string
+          duracao_minutos?: number
+          email_paciente?: string | null
+          id?: string
+          nome_paciente?: string
+          observacoes?: string | null
+          paciente_id?: string | null
+          status?: Database["public"]["Enums"]["status_agendamento"]
+          telefone_paciente?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agendamentos_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pacientes: {
+        Row: {
+          convenio: string | null
+          cpf: string | null
+          created_at: string
+          data_nascimento: string | null
+          email: string | null
+          endereco_bairro: string | null
+          endereco_cep: string | null
+          endereco_cidade: string | null
+          endereco_estado: string | null
+          endereco_numero: string | null
+          endereco_rua: string | null
+          id: string
+          nome: string
+          numero_carteirinha: string | null
+          observacoes: string | null
+          profissao: string | null
+          telefone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          convenio?: string | null
+          cpf?: string | null
+          created_at?: string
+          data_nascimento?: string | null
+          email?: string | null
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_cidade?: string | null
+          endereco_estado?: string | null
+          endereco_numero?: string | null
+          endereco_rua?: string | null
+          id?: string
+          nome: string
+          numero_carteirinha?: string | null
+          observacoes?: string | null
+          profissao?: string | null
+          telefone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          convenio?: string | null
+          cpf?: string | null
+          created_at?: string
+          data_nascimento?: string | null
+          email?: string | null
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_cidade?: string | null
+          endereco_estado?: string | null
+          endereco_numero?: string | null
+          endereco_rua?: string | null
+          id?: string
+          nome?: string
+          numero_carteirinha?: string | null
+          observacoes?: string | null
+          profissao?: string | null
+          telefone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          especialidade: string | null
+          id: string
+          link_publico: string | null
+          nome: string
+          telefone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          especialidade?: string | null
+          id?: string
+          link_publico?: string | null
+          nome: string
+          telefone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          especialidade?: string | null
+          id?: string
+          link_publico?: string | null
+          nome?: string
+          telefone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +180,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      status_agendamento: "agendado" | "confirmado" | "cancelado" | "concluido"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +307,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      status_agendamento: ["agendado", "confirmado", "cancelado", "concluido"],
+    },
   },
 } as const
