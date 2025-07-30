@@ -8,6 +8,10 @@ import Layout from "./components/layout/Layout";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import Agenda from "./pages/Agenda";
+import Pacientes from "./pages/Pacientes";
+import LinkPublico from "./pages/LinkPublico";
+import Configuracoes from "./pages/Configuracoes";
 
 const queryClient = new QueryClient();
 
@@ -21,10 +25,10 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/" element={<Layout><Dashboard /></Layout>} />
-            <Route path="/agenda" element={<Layout><div>Agenda em desenvolvimento</div></Layout>} />
-            <Route path="/pacientes" element={<Layout><div>Pacientes em desenvolvimento</div></Layout>} />
-            <Route path="/link-publico" element={<Layout><div>Link público em desenvolvimento</div></Layout>} />
-            <Route path="/configuracoes" element={<Layout><div>Configurações em desenvolvimento</div></Layout>} />
+            <Route path="/agenda" element={<Layout><Agenda /></Layout>} />
+            <Route path="/pacientes" element={<Layout><Pacientes /></Layout>} />
+            <Route path="/link-publico" element={<Layout><LinkPublico /></Layout>} />
+            <Route path="/configuracoes" element={<Layout><Configuracoes /></Layout>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
