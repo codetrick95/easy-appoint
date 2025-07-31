@@ -6,12 +6,13 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth";
 import Layout from "./components/layout/Layout";
 import Dashboard from "./pages/Dashboard";
-import Auth from "./pages/Auth";
-import NotFound from "./pages/NotFound";
 import Agenda from "./pages/Agenda";
 import Pacientes from "./pages/Pacientes";
 import LinkPublico from "./pages/LinkPublico";
+import PublicAgendamento from "./pages/PublicAgendamento";
 import Configuracoes from "./pages/Configuracoes";
+import Auth from "./pages/Auth";
+import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,8 @@ const App = () => (
             <Route path="/pacientes" element={<Layout><Pacientes /></Layout>} />
             <Route path="/link-publico" element={<Layout><LinkPublico /></Layout>} />
             <Route path="/configuracoes" element={<Layout><Configuracoes /></Layout>} />
+            {/* ROTAS PÚBLICAS */}
+            <Route path="/public/:linkId" element={<PublicAgendamento />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
