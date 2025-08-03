@@ -46,7 +46,7 @@ const Agenda = () => {
     email_paciente: '',
     data_hora: '',
     duracao_minutos: '60',
-    status: 'agendado' as const,
+    status: 'agendado' as 'agendado' | 'confirmado' | 'cancelado' | 'concluido',
     observacoes: ''
   });
 
@@ -58,10 +58,95 @@ const Agenda = () => {
   ];
 
   const statusColors = {
-    agendado: 'bg-blue-100 text-blue-800',
-    confirmado: 'bg-green-100 text-green-800',
+    agendado: 'bg-green-100 text-green-800',
+    confirmado: 'bg-blue-100 text-blue-800',
     cancelado: 'bg-red-100 text-red-800',
     concluido: 'bg-gray-100 text-gray-800'
+  };
+
+  // Função para capitalizar a primeira letra do nome
+  const capitalizeName = (name: string) => {
+    return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+  };
+
+  // Função para verificar conflitos de agendamento
+  const checkSchedulingConflict = (dataHora: Date, duracaoMinutos: number, excludeId?: string) => {
+    const startTime = dataHora;
+    const endTime = new Date(startTime.getTime() + duracaoMinutos * 60000);
+    
+    // Verificar se há agendamentos no mesmo horário ou com sobreposição
+    const conflictingAppointment = agendamentos.find(agendamento => {
+      if (excludeId && agendamento.id === excludeId) return false;
+      
+      const appointmentStart = parseISO(agendamento.data_hora);
+      const appointmentEnd = new Date(appointmentStart.getTime() + agendamento.duracao_minutos * 60000);
+      
+      // Verificar sobreposição
+      return (
+        (startTime < appointmentEnd && endTime > appointmentStart) ||
+        // Verificar se há menos de 1 hora entre agendamentos
+        Math.abs(startTime.getTime() - appointmentEnd.getTime()) < 60 * 60 * 1000 || // 1 hora antes
+        Math.abs(appointmentStart.getTime() - endTime.getTime()) < 60 * 60 * 1000     // 1 hora depois
+      );
+    });
+    
+    return conflictingAppointment;
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'agendado': return 'Agendado';
+      case 'confirmado': return 'Confirmado';
+      case 'cancelado': return 'Cancelado';
+      case 'concluido': return 'Concluído';
+      default: return status;
+    }
+  };
+
+  // Verificar se há parâmetro de edição na URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const editId = urlParams.get('edit');
+    
+    if (editId && user) {
+      fetchAgendamentoForEdit(editId);
+    }
+  }, [user]);
+
+  const fetchAgendamentoForEdit = async (id: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('agendamentos')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user?.id)
+        .single();
+
+      if (error) {
+        console.error('Erro ao carregar agendamento para edição:', error);
+        return;
+      }
+
+      if (data) {
+        setEditAgendamento(data);
+        setForm({
+          nome_paciente: data.nome_paciente,
+          telefone_paciente: data.telefone_paciente || '',
+          email_paciente: data.email_paciente || '',
+          data_hora: format(parseISO(data.data_hora), "yyyy-MM-dd'T'HH:mm"),
+          duracao_minutos: data.duracao_minutos.toString(),
+          status: data.status,
+          observacoes: data.observacoes || ''
+        });
+        setModalOpen(true);
+        
+        // Limpar o parâmetro da URL
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar agendamento para edição:', error);
+    }
   };
 
   const fetchAgendamentos = async () => {
@@ -105,7 +190,9 @@ const Agenda = () => {
       if (error) {
         console.error('Erro ao carregar agendamentos:', error);
       } else {
-        setAgendamentos(data || []);
+        // Filtrar agendamentos concluídos para não aparecerem na agenda
+        const filteredData = (data || []).filter(agendamento => agendamento.status !== 'concluido');
+        setAgendamentos(filteredData);
       }
     } catch (error) {
       console.error('Erro ao carregar agendamentos:', error);
@@ -140,7 +227,7 @@ const Agenda = () => {
       email_paciente: agendamento.email_paciente || '',
       data_hora: format(parseISO(agendamento.data_hora), "yyyy-MM-dd'T'HH:mm"),
       duracao_minutos: String(agendamento.duracao_minutos),
-      status: agendamento.status,
+      status: agendamento.status as 'agendado' | 'confirmado' | 'cancelado' | 'concluido',
       observacoes: agendamento.observacoes || ''
     });
     setModalOpen(true);
@@ -152,11 +239,27 @@ const Agenda = () => {
 
     setSaving(true);
     try {
+      // Converter a data/hora para o fuso horário local
+      const dataHoraLocal = new Date(form.data_hora);
+      
+      // Verificar conflitos de agendamento
+      const conflictingAppointment = checkSchedulingConflict(
+        dataHoraLocal, 
+        parseInt(form.duracao_minutos), 
+        editAgendamento?.id
+      );
+      
+      if (conflictingAppointment) {
+        alert(`Conflito de agendamento! Já existe um agendamento para ${conflictingAppointment.nome_paciente} às ${formatTime(conflictingAppointment.data_hora)}. Por favor, escolha outro horário com pelo menos 1 hora de intervalo.`);
+        setSaving(false);
+        return;
+      }
+      
       const agendamentoData = {
-        nome_paciente: form.nome_paciente,
+        nome_paciente: capitalizeName(form.nome_paciente),
         telefone_paciente: form.telefone_paciente || null,
         email_paciente: form.email_paciente || null,
-        data_hora: form.data_hora,
+        data_hora: dataHoraLocal.toISOString(),
         duracao_minutos: parseInt(form.duracao_minutos),
         status: form.status,
         observacoes: form.observacoes || null,
@@ -259,7 +362,8 @@ const Agenda = () => {
   };
 
   const formatTime = (dateString: string) => {
-    return format(parseISO(dateString), 'HH:mm');
+    const date = parseISO(dateString);
+    return format(date, 'HH:mm');
   };
 
   const formatDuration = (minutes: number) => {
@@ -308,19 +412,39 @@ const Agenda = () => {
               </div>
               <div className="flex-1">
                 {agendamento ? (
-                  <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className={`flex items-center justify-between p-4 rounded-lg border cursor-pointer transition-colors ${
+                    agendamento.status === 'agendado' 
+                      ? 'bg-green-50 border-green-200 hover:bg-green-100' 
+                      : agendamento.status === 'confirmado'
+                      ? 'bg-blue-50 border-blue-200 hover:bg-blue-100'
+                      : agendamento.status === 'cancelado'
+                      ? 'bg-red-50 border-red-200 hover:bg-red-100'
+                      : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                  }`}
+                  onClick={() => openEdit(agendamento)}
+                  >
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <User className="h-4 w-4 text-blue-600" />
-                        <span className="font-medium text-blue-800">
+                        <User className={`h-4 w-4 ${
+                          agendamento.status === 'agendado' ? 'text-green-600' :
+                          agendamento.status === 'confirmado' ? 'text-blue-600' :
+                          agendamento.status === 'cancelado' ? 'text-red-600' :
+                          'text-gray-600'
+                        }`} />
+                        <span className="font-bold text-lg">
                           {agendamento.nome_paciente}
                         </span>
                         <Badge className={statusColors[agendamento.status]}>
-                          {agendamento.status}
+                          {getStatusText(agendamento.status)}
                         </Badge>
                       </div>
                       
-                      <div className="flex items-center gap-4 text-sm text-blue-600">
+                      <div className={`flex items-center gap-4 text-sm ${
+                        agendamento.status === 'agendado' ? 'text-green-600' :
+                        agendamento.status === 'confirmado' ? 'text-blue-600' :
+                        agendamento.status === 'cancelado' ? 'text-red-600' :
+                        'text-gray-600'
+                      }`}>
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           {formatDuration(agendamento.duracao_minutos)}
@@ -352,7 +476,10 @@ const Agenda = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => openEdit(agendamento)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEdit(agendamento);
+                        }}
                       >
                         <Edit className="h-3 w-3 mr-1" />
                         Editar
@@ -363,7 +490,10 @@ const Agenda = () => {
                           <Button
                             size="sm"
                             variant="destructive"
-                            onClick={() => setDeleteId(agendamento.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteId(agendamento.id);
+                            }}
                           >
                             <Trash2 className="h-3 w-3 mr-1" />
                             Excluir
@@ -434,9 +564,38 @@ const Agenda = () => {
               
               <div className="space-y-1">
                 {dayAgendamentos.slice(0, 3).map((agendamento) => (
-                  <div key={agendamento.id} className="text-xs p-1 bg-green-100 rounded">
-                    <div className="font-medium truncate">{agendamento.nome_paciente}</div>
-                    <div className="text-gray-600">{formatTime(agendamento.data_hora)}</div>
+                  <div 
+                    key={agendamento.id} 
+                    className={`text-xs p-2 rounded cursor-pointer transition-colors ${
+                      agendamento.status === 'agendado' 
+                        ? 'bg-green-100 hover:bg-green-200' 
+                        : agendamento.status === 'confirmado'
+                        ? 'bg-blue-100 hover:bg-blue-200'
+                        : agendamento.status === 'cancelado'
+                        ? 'bg-red-100 hover:bg-red-200'
+                        : 'bg-gray-100 hover:bg-gray-200'
+                    }`}
+                    onClick={() => openEdit(agendamento)}
+                  >
+                    <div className={`font-bold truncate ${
+                      agendamento.status === 'agendado' ? 'text-green-800' :
+                      agendamento.status === 'confirmado' ? 'text-blue-800' :
+                      agendamento.status === 'cancelado' ? 'text-red-800' :
+                      'text-gray-800'
+                    }`}>
+                      {agendamento.nome_paciente}
+                    </div>
+                    <div className="text-gray-600 text-xs">
+                      {formatTime(agendamento.data_hora)}
+                    </div>
+                    <div className={`text-xs px-1 py-0.5 rounded mt-1 inline-block ${statusColors[agendamento.status]}`}>
+                      {getStatusText(agendamento.status)}
+                    </div>
+                    {agendamento.observacoes && (
+                      <div className="text-xs text-gray-500 mt-1 truncate">
+                        {agendamento.observacoes}
+                      </div>
+                    )}
                   </div>
                 ))}
                 {dayAgendamentos.length > 3 && (
@@ -485,9 +644,38 @@ const Agenda = () => {
               
               <div className="space-y-1 mt-1">
                 {dayAgendamentos.slice(0, 2).map((agendamento) => (
-                  <div key={agendamento.id} className="text-xs p-1 bg-green-100 rounded">
-                    <div className="font-medium truncate">{agendamento.nome_paciente}</div>
-                    <div className="text-gray-600">{formatTime(agendamento.data_hora)}</div>
+                  <div 
+                    key={agendamento.id} 
+                    className={`text-xs p-2 rounded cursor-pointer transition-colors ${
+                      agendamento.status === 'agendado' 
+                        ? 'bg-green-100 hover:bg-green-200' 
+                        : agendamento.status === 'confirmado'
+                        ? 'bg-blue-100 hover:bg-blue-200'
+                        : agendamento.status === 'cancelado'
+                        ? 'bg-red-100 hover:bg-red-200'
+                        : 'bg-gray-100 hover:bg-gray-200'
+                    }`}
+                    onClick={() => openEdit(agendamento)}
+                  >
+                    <div className={`font-bold truncate ${
+                      agendamento.status === 'agendado' ? 'text-green-800' :
+                      agendamento.status === 'confirmado' ? 'text-blue-800' :
+                      agendamento.status === 'cancelado' ? 'text-red-800' :
+                      'text-gray-800'
+                    }`}>
+                      {agendamento.nome_paciente}
+                    </div>
+                    <div className="text-gray-600 text-xs">
+                      {formatTime(agendamento.data_hora)}
+                    </div>
+                    <div className={`text-xs px-1 py-0.5 rounded mt-1 inline-block ${statusColors[agendamento.status]}`}>
+                      {getStatusText(agendamento.status)}
+                    </div>
+                    {agendamento.observacoes && (
+                      <div className="text-xs text-gray-500 mt-1 truncate">
+                        {agendamento.observacoes}
+                      </div>
+                    )}
                   </div>
                 ))}
                 {dayAgendamentos.length > 2 && (

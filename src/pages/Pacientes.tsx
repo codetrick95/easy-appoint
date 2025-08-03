@@ -8,6 +8,7 @@ import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, Dialog
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogFooter } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { 
@@ -22,8 +23,19 @@ import {
   MapPin, 
   FileText,
   Users,
-  Filter
+  Filter,
+  AlertCircle
 } from 'lucide-react';
+import { getEstados, getCidadesByEstado, getEstadoBySigla } from '@/lib/estados-cidades';
+import { 
+  maskCPF, 
+  maskCEP, 
+  maskPhone, 
+  maskCarteirinha,
+  validateCPF,
+  validateCEP,
+  validatePhone
+} from '@/lib/masks';
 
 interface Paciente {
   id: string;
@@ -55,6 +67,12 @@ const Pacientes = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedEstado, setSelectedEstado] = useState('');
+  const [cidadesDisponiveis, setCidadesDisponiveis] = useState<string[]>([]);
+  const [cidadeSearch, setCidadeSearch] = useState<string>('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const estados = getEstados();
 
   const [form, setForm] = useState({
     nome: '',
@@ -101,8 +119,23 @@ const Pacientes = () => {
     fetchPacientes();
   }, [user]);
 
+  // Atualiza cidades quando estado é selecionado
+  useEffect(() => {
+    if (selectedEstado) {
+      const cidades = getCidadesByEstado(selectedEstado);
+      setCidadesDisponiveis(cidades);
+      setForm(prev => ({ ...prev, endereco_cidade: '' }));
+    } else {
+      setCidadesDisponiveis([]);
+    }
+  }, [selectedEstado]);
+
   const openNew = () => {
     setEditPaciente(null);
+    setSelectedEstado('');
+    setCidadesDisponiveis([]);
+    setCidadeSearch('');
+    setErrors({});
     setForm({
       nome: '',
       telefone: '',
@@ -125,6 +158,8 @@ const Pacientes = () => {
 
   const openEdit = (paciente: Paciente) => {
     setEditPaciente(paciente);
+    setSelectedEstado(paciente.endereco_estado || '');
+    setErrors({});
     setForm({
       nome: paciente.nome,
       telefone: paciente.telefone || '',
@@ -145,9 +180,40 @@ const Pacientes = () => {
     setModalOpen(true);
   };
 
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (!form.nome.trim()) {
+      newErrors.nome = 'Nome é obrigatório';
+    }
+
+    if (form.cpf && !validateCPF(form.cpf)) {
+      newErrors.cpf = 'CPF inválido';
+    }
+
+    if (form.telefone && !validatePhone(form.telefone)) {
+      newErrors.telefone = 'Telefone inválido';
+    }
+
+    if (form.endereco_cep && !validateCEP(form.endereco_cep)) {
+      newErrors.endereco_cep = 'CEP inválido';
+    }
+
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      newErrors.email = 'Email inválido';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    if (!validateForm()) {
+      return;
+    }
 
     setSaving(true);
     try {
@@ -212,12 +278,17 @@ const Pacientes = () => {
     }
   };
 
-  const filteredPacientes = pacientes.filter(paciente =>
-    paciente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    paciente.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    paciente.telefone?.includes(searchTerm) ||
-    paciente.cpf?.includes(searchTerm)
-  );
+  const filteredPacientes = pacientes.filter(paciente => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      paciente.nome.toLowerCase().includes(searchLower) ||
+      (paciente.email && paciente.email.toLowerCase().includes(searchLower)) ||
+      (paciente.telefone && paciente.telefone.includes(searchTerm)) ||
+      (paciente.cpf && paciente.cpf.includes(searchTerm)) ||
+      (paciente.convenio && paciente.convenio.toLowerCase().includes(searchLower)) ||
+      (paciente.profissao && paciente.profissao.toLowerCase().includes(searchLower))
+    );
+  });
 
   const formatDate = (dateString: string) => {
     if (!dateString) return '-';
@@ -273,8 +344,15 @@ const Pacientes = () => {
                       id="nome"
                       value={form.nome}
                       onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
+                      className={errors.nome ? 'border-red-500' : ''}
                       required
                     />
+                    {errors.nome && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {errors.nome}
+                      </p>
+                    )}
                   </div>
                   
                   <div className="space-y-2">
@@ -282,9 +360,16 @@ const Pacientes = () => {
                     <Input
                       id="cpf"
                       value={form.cpf}
-                      onChange={e => setForm(f => ({ ...f, cpf: e.target.value }))}
+                      onChange={e => setForm(f => ({ ...f, cpf: maskCPF(e.target.value) }))}
                       placeholder="000.000.000-00"
+                      className={errors.cpf ? 'border-red-500' : ''}
                     />
+                    {errors.cpf && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {errors.cpf}
+                      </p>
+                    )}
                   </div>
                   
                   <div className="space-y-2">
@@ -321,9 +406,16 @@ const Pacientes = () => {
                     <Input
                       id="telefone"
                       value={form.telefone}
-                      onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))}
+                      onChange={e => setForm(f => ({ ...f, telefone: maskPhone(e.target.value) }))}
                       placeholder="(00) 00000-0000"
+                      className={errors.telefone ? 'border-red-500' : ''}
                     />
+                    {errors.telefone && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {errors.telefone}
+                      </p>
+                    )}
                   </div>
                   
                   <div className="space-y-2">
@@ -333,7 +425,14 @@ const Pacientes = () => {
                       type="email"
                       value={form.email}
                       onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                      className={errors.email ? 'border-red-500' : ''}
                     />
+                    {errors.email && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {errors.email}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -360,7 +459,8 @@ const Pacientes = () => {
                     <Input
                       id="numero_carteirinha"
                       value={form.numero_carteirinha}
-                      onChange={e => setForm(f => ({ ...f, numero_carteirinha: e.target.value }))}
+                      onChange={e => setForm(f => ({ ...f, numero_carteirinha: maskCarteirinha(e.target.value) }))}
+                      placeholder="00000000000000000000"
                     />
                   </div>
                 </div>
@@ -379,27 +479,70 @@ const Pacientes = () => {
                     <Input
                       id="endereco_cep"
                       value={form.endereco_cep}
-                      onChange={e => setForm(f => ({ ...f, endereco_cep: e.target.value }))}
+                      onChange={e => setForm(f => ({ ...f, endereco_cep: maskCEP(e.target.value) }))}
                       placeholder="00000-000"
+                      className={errors.endereco_cep ? 'border-red-500' : ''}
                     />
+                    {errors.endereco_cep && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {errors.endereco_cep}
+                      </p>
+                    )}
                   </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="endereco_estado">Estado</Label>
-                    <Input
-                      id="endereco_estado"
-                      value={form.endereco_estado}
-                      onChange={e => setForm(f => ({ ...f, endereco_estado: e.target.value }))}
-                    />
+                    <Select 
+                      value={selectedEstado} 
+                      onValueChange={(value) => {
+                        setSelectedEstado(value);
+                        setForm(f => ({ ...f, endereco_estado: value }));
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o estado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {estados.map((estado) => (
+                          <SelectItem key={estado.sigla} value={estado.sigla}>
+                            {estado.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="endereco_cidade">Cidade</Label>
-                    <Input
-                      id="endereco_cidade"
-                      value={form.endereco_cidade}
-                      onChange={e => setForm(f => ({ ...f, endereco_cidade: e.target.value }))}
-                    />
+                    <Select 
+                      value={form.endereco_cidade} 
+                      onValueChange={(value) => setForm(f => ({ ...f, endereco_cidade: value }))}
+                      disabled={!selectedEstado}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a cidade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <div className="p-2">
+                          <Input
+                            placeholder="Digite para buscar..."
+                            value={cidadeSearch}
+                            onChange={(e) => setCidadeSearch(e.target.value)}
+                            className="mb-2"
+                          />
+                        </div>
+                        {cidadesDisponiveis
+                          .filter(cidade => 
+                            cidade.toLowerCase().includes(cidadeSearch.toLowerCase())
+                          )
+                          .map((cidade) => (
+                            <SelectItem key={cidade} value={cidade}>
+                              {cidade}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 
@@ -480,7 +623,7 @@ const Pacientes = () => {
           <div className="flex items-center gap-2">
             <Search className="h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar por nome, email, telefone ou CPF..."
+              placeholder="Buscar por nome, email, telefone, CPF ou convênio..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="flex-1"

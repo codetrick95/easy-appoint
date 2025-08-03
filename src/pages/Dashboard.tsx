@@ -3,7 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, Users, Clock, CheckCircle, Plus, Eye, Edit, Phone, Mail, MapPin, ArrowRight } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Calendar, Users, Clock, CheckCircle, Plus, Eye, EyeOff, Edit, Phone, Mail, MapPin, ArrowRight, Trash2, CalendarDays } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { format, parseISO, isToday, isTomorrow, isThisWeek } from 'date-fns';
@@ -40,6 +42,11 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('todos');
   const [filterPeriod, setFilterPeriod] = useState<string>('proximos');
+  const [showAgendamentos, setShowAgendamentos] = useState(true);
+  const [selectedAgendamento, setSelectedAgendamento] = useState<Agendamento | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -124,7 +131,7 @@ const Dashboard = () => {
 
       // Filtrar por status
       if (filterStatus !== 'todos') {
-        query = query.eq('status', filterStatus);
+        query = query.eq('status', filterStatus as 'agendado' | 'confirmado' | 'cancelado' | 'concluido');
       }
 
       const { data, error } = await query;
@@ -147,17 +154,83 @@ const Dashboard = () => {
     }
   }, [user, filterStatus, filterPeriod]);
 
-  const getStatusColor = (status: string) => {
+  const handleEditAgendamento = (agendamento: Agendamento) => {
+    setSelectedAgendamento(agendamento);
+    setEditModalOpen(true);
+  };
+
+  const handleDeleteAgendamento = async () => {
+    if (!selectedAgendamento) return;
+
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('agendamentos')
+        .delete()
+        .eq('id', selectedAgendamento.id);
+
+      if (error) {
+        console.error('Erro ao deletar agendamento:', error);
+        alert('Erro ao deletar agendamento');
+      } else {
+        setDeleteModalOpen(false);
+        setSelectedAgendamento(null);
+        loadAgendamentos();
+        loadStats();
+      }
+    } catch (error) {
+      console.error('Erro ao deletar agendamento:', error);
+      alert('Erro ao deletar agendamento');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleStatusChange = async (newStatus: 'agendado' | 'confirmado' | 'cancelado' | 'concluido') => {
+    if (!selectedAgendamento) return;
+
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('agendamentos')
+        .update({ status: newStatus })
+        .eq('id', selectedAgendamento.id);
+
+      if (error) {
+        console.error('Erro ao atualizar status:', error);
+        alert('Erro ao atualizar status');
+      } else {
+        setEditModalOpen(false);
+        setSelectedAgendamento(null);
+        loadAgendamentos();
+        loadStats();
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error);
+      alert('Erro ao atualizar status');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReschedule = () => {
+    if (!selectedAgendamento) return;
+    
+    // Redirecionar para a página de agenda com o agendamento selecionado
+    window.location.href = `/agenda?edit=${selectedAgendamento.id}`;
+  };
+
+  const getStatusColor = (status: 'agendado' | 'confirmado' | 'cancelado' | 'concluido') => {
     switch (status) {
-      case 'agendado': return 'bg-blue-100 text-blue-800';
-      case 'confirmado': return 'bg-green-100 text-green-800';
+      case 'agendado': return 'bg-green-100 text-green-800';
+      case 'confirmado': return 'bg-blue-100 text-blue-800';
       case 'cancelado': return 'bg-red-100 text-red-800';
       case 'concluido': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const getStatusText = (status: string) => {
+  const getStatusText = (status: 'agendado' | 'confirmado' | 'cancelado' | 'concluido') => {
     switch (status) {
       case 'agendado': return 'Agendado';
       case 'confirmado': return 'Confirmado';
@@ -293,10 +366,19 @@ const Dashboard = () => {
                   Suas consultas programadas
                 </CardDescription>
               </div>
-              <Button size="sm" variant="outline" onClick={() => window.location.href = '/agenda'}>
-                <Plus className="h-4 w-4 mr-2" />
-                Novo
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => setShowAgendamentos(!showAgendamentos)}
+                >
+                  {showAgendamentos ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => window.location.href = '/agenda'}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Novo
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -329,76 +411,95 @@ const Dashboard = () => {
             </div>
 
             {/* Lista de Agendamentos */}
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {agendamentos.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>Nenhum agendamento encontrado</p>
-                  <p className="text-sm">Clique em "Novo" para criar um agendamento</p>
-                </div>
-              ) : (
-                agendamentos.map((agendamento) => (
-                  <div key={agendamento.id} className="p-3 border rounded-lg hover:bg-accent/50 transition-colors">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-medium text-sm">{agendamento.nome_paciente}</h4>
-                          <Badge className={`text-xs ${getStatusColor(agendamento.status)}`}>
-                            {getStatusText(agendamento.status)}
-                          </Badge>
+            {showAgendamentos && (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {agendamentos.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>Nenhum agendamento encontrado</p>
+                    <p className="text-sm">Clique em "Novo" para criar um agendamento</p>
+                  </div>
+                ) : (
+                  agendamentos.map((agendamento) => (
+                    <div 
+                      key={agendamento.id} 
+                      className="p-3 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
+                      onClick={() => handleEditAgendamento(agendamento)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-medium text-sm">{agendamento.nome_paciente}</h4>
+                            <Badge className={`text-xs ${getStatusColor(agendamento.status as 'agendado' | 'confirmado' | 'cancelado' | 'concluido')}`}>
+                              {getStatusText(agendamento.status as 'agendado' | 'confirmado' | 'cancelado' | 'concluido')}
+                            </Badge>
+                          </div>
+                          
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {formatDate(agendamento.data_hora)} às {formatTime(agendamento.data_hora)}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {formatDuration(agendamento.duracao_minutos)}
+                            </div>
+                          </div>
+
+                          {/* Informações de Contato */}
+                          {(agendamento.telefone_paciente || agendamento.email_paciente) && (
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                              {agendamento.telefone_paciente && (
+                                <div className="flex items-center gap-1">
+                                  <Phone className="h-3 w-3" />
+                                  {agendamento.telefone_paciente}
+                                </div>
+                              )}
+                              {agendamento.email_paciente && (
+                                <div className="flex items-center gap-1">
+                                  <Mail className="h-3 w-3" />
+                                  {agendamento.email_paciente}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {agendamento.observacoes && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {agendamento.observacoes}
+                            </p>
+                          )}
                         </div>
-                        
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {formatDate(agendamento.data_hora)} às {formatTime(agendamento.data_hora)}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {formatDuration(agendamento.duracao_minutos)}
-                          </div>
+
+                        <div className="flex gap-1 ml-2">
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-6 w-6 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditAgendamento(agendamento);
+                            }}
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
                         </div>
-
-                        {/* Informações de Contato */}
-                        {(agendamento.telefone_paciente || agendamento.email_paciente) && (
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                            {agendamento.telefone_paciente && (
-                              <div className="flex items-center gap-1">
-                                <Phone className="h-3 w-3" />
-                                {agendamento.telefone_paciente}
-                              </div>
-                            )}
-                            {agendamento.email_paciente && (
-                              <div className="flex items-center gap-1">
-                                <Mail className="h-3 w-3" />
-                                {agendamento.email_paciente}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {agendamento.observacoes && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {agendamento.observacoes}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex gap-1 ml-2">
-                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
-                          <Eye className="h-3 w-3" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
-                          <Edit className="h-3 w-3" />
-                        </Button>
                       </div>
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
+                  ))
+                )}
+              </div>
+            )}
 
-            {agendamentos.length > 0 && (
+            {!showAgendamentos && (
+              <div className="text-center py-8 text-muted-foreground">
+                <EyeOff className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p>Agendamentos ocultos</p>
+                <p className="text-sm">Clique no ícone do olho para mostrar</p>
+              </div>
+            )}
+
+            {showAgendamentos && agendamentos.length > 0 && (
               <div className="mt-4 pt-4 border-t">
                 <Button 
                   variant="outline" 
@@ -483,6 +584,112 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Modal de Edição */}
+      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Gerenciar Agendamento</DialogTitle>
+            <DialogDescription>
+              {selectedAgendamento && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 gap-2">
+                    <div className="flex justify-between">
+                      <span className="font-medium">Paciente:</span>
+                      <span>{selectedAgendamento.nome_paciente}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium">Data/Hora:</span>
+                      <span>{formatDate(selectedAgendamento.data_hora)} às {formatTime(selectedAgendamento.data_hora)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium">Duração:</span>
+                      <span>{formatDuration(selectedAgendamento.duracao_minutos)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium">Status:</span>
+                      <Badge className={getStatusColor(selectedAgendamento.status as 'agendado' | 'confirmado' | 'cancelado' | 'concluido')}>
+                        {getStatusText(selectedAgendamento.status as 'agendado' | 'confirmado' | 'cancelado' | 'concluido')}
+                      </Badge>
+                    </div>
+                    {selectedAgendamento.observacoes && (
+                      <div className="flex justify-between">
+                        <span className="font-medium">Observações:</span>
+                        <span className="text-sm text-muted-foreground max-w-xs truncate">
+                          {selectedAgendamento.observacoes}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col gap-3 sm:flex-row sm:justify-between">
+            <div className="flex flex-col gap-2 w-full sm:w-auto">
+              <Button
+                variant="outline"
+                onClick={handleReschedule}
+                disabled={saving}
+                className="flex items-center gap-2 w-full sm:w-auto"
+              >
+                <CalendarDays className="h-4 w-4" />
+                Reagendar
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleStatusChange('confirmado')}
+                disabled={saving || selectedAgendamento?.status === 'confirmado'}
+                className="w-full sm:w-auto"
+              >
+                Confirmar
+              </Button>
+            </div>
+            <div className="flex flex-col gap-2 w-full sm:w-auto">
+              <Button
+                variant="outline"
+                onClick={() => handleStatusChange('concluido')}
+                disabled={saving || selectedAgendamento?.status === 'concluido'}
+                className="w-full sm:w-auto"
+              >
+                Concluir
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setEditModalOpen(false);
+                  setDeleteModalOpen(true);
+                }}
+                disabled={saving}
+                className="flex items-center justify-center gap-2 w-full sm:w-auto"
+              >
+                <Trash2 className="h-4 w-4" />
+                Excluir
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Confirmação de Exclusão */}
+      <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Exclusão</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir este agendamento? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteModalOpen(false)} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteAgendamento} disabled={saving}>
+              {saving ? 'Excluindo...' : 'Excluir'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -124,11 +124,14 @@ const PublicAgendamento = () => {
 
     setSaving(true);
     try {
+      // Converter a data/hora para o fuso horário local
+      const dataHoraLocal = new Date(form.data_hora);
+      
       const agendamentoData = {
         nome_paciente: form.nome_paciente,
         telefone_paciente: form.telefone_paciente || null,
         email_paciente: form.email_paciente || null,
-        data_hora: form.data_hora,
+        data_hora: dataHoraLocal.toISOString(),
         duracao_minutos: parseInt(form.duracao_minutos),
         status: 'agendado',
         observacoes: form.observacoes || null,
