@@ -73,7 +73,9 @@ const Dashboard = () => {
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user?.id)
         .gte('data_hora', inicioHoje.toISOString())
-        .lt('data_hora', fimHoje.toISOString());
+        .lt('data_hora', fimHoje.toISOString())
+        .neq('status', 'concluido')
+        .neq('status', 'cancelado');
 
       // Agendamentos próximos (próximos 7 dias)
       const proximosSete = new Date(hoje.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -82,7 +84,9 @@ const Dashboard = () => {
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user?.id)
         .gte('data_hora', hoje.toISOString())
-        .lt('data_hora', proximosSete.toISOString());
+        .lt('data_hora', proximosSete.toISOString())
+        .neq('status', 'concluido')
+        .neq('status', 'cancelado');
 
       // Agendamentos concluídos este mês
       const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
@@ -132,6 +136,9 @@ const Dashboard = () => {
       // Filtrar por status
       if (filterStatus !== 'todos') {
         query = query.eq('status', filterStatus as 'agendado' | 'confirmado' | 'cancelado' | 'concluido');
+      } else {
+        // Por padrão, ocultar concluídos e cancelados
+        query = query.in('status', ['agendado', 'confirmado']);
       }
 
       const { data, error } = await query;
@@ -223,7 +230,7 @@ const Dashboard = () => {
   const getStatusColor = (status: 'agendado' | 'confirmado' | 'cancelado' | 'concluido') => {
     switch (status) {
       case 'agendado': return 'bg-green-100 text-green-800';
-      case 'confirmado': return 'bg-blue-100 text-blue-800';
+      case 'confirmado': return 'bg-purple-100 text-purple-800';
       case 'cancelado': return 'bg-red-100 text-red-800';
       case 'concluido': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';

@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 import { useParams } from 'react-router-dom';
+import { startOfDay, endOfDay, parseISO } from 'date-fns';
 import { 
   Calendar, 
   Clock, 
@@ -118,6 +119,29 @@ const PublicAgendamento = () => {
     fetchProfile();
   }, [linkId]);
 
+  // Verifica conflito com base nos agendamentos existentes
+  const checkSchedulingConflict = (
+    existingAppointments: Agendamento[],
+    requestedStart: Date,
+    requestedDurationMinutes: number
+  ) => {
+    const requestedEnd = new Date(
+      requestedStart.getTime() + requestedDurationMinutes * 60000
+    );
+
+    return existingAppointments.find((appointment) => {
+      if (appointment.status === 'cancelado') return false;
+      const appointmentStart = parseISO(appointment.data_hora);
+      const appointmentEnd = new Date(
+        appointmentStart.getTime() + appointment.duracao_minutos * 60000
+      );
+      // Conflito apenas por sobreposição real (intervalos [start, end))
+      return (
+        requestedStart < appointmentEnd && requestedEnd > appointmentStart
+      );
+    });
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
@@ -126,6 +150,30 @@ const PublicAgendamento = () => {
     try {
       // Converter a data/hora para o fuso horário local
       const dataHoraLocal = new Date(form.data_hora);
+      const dayStart = startOfDay(dataHoraLocal);
+      const dayEnd = endOfDay(dataHoraLocal);
+      
+      // Carrega agendamentos do mesmo dia para verificar conflitos
+      const { data: existing, error: fetchError } = await supabase
+        .from('agendamentos')
+        .select('id, data_hora, duracao_minutos, status')
+        .eq('user_id', profile.user_id)
+        .gte('data_hora', dayStart.toISOString())
+        .lte('data_hora', dayEnd.toISOString());
+
+      if (fetchError) throw fetchError;
+
+      const conflicting = checkSchedulingConflict(
+        existing || [],
+        dataHoraLocal,
+        parseInt(form.duracao_minutos)
+      );
+      
+      if (conflicting) {
+        alert('Horário indisponível. Escolha outro horário que não sobreponha nenhum agendamento.');
+        setSaving(false);
+        return;
+      }
       
       const agendamentoData = {
         nome_paciente: form.nome_paciente,
@@ -155,8 +203,13 @@ const PublicAgendamento = () => {
         duracao_minutos: '60',
         observacoes: ''
       });
-    } catch (error) {
-      console.error('Erro ao salvar agendamento:', error);
+    } catch (error: any) {
+      if (error?.code === '23P01') {
+        alert('Horário já ocupado. Tente outro horário.');
+      } else {
+        console.error('Erro ao salvar agendamento:', error);
+        alert('Não foi possível salvar o agendamento. Tente novamente.');
+      }
     } finally {
       setSaving(false);
     }
@@ -166,7 +219,7 @@ const PublicAgendamento = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
           <p className="mt-4 text-muted-foreground">Carregando...</p>
         </div>
       </div>
@@ -334,7 +387,7 @@ const PublicAgendamento = () => {
               <CardContent>
                 <Dialog open={modalOpen} onOpenChange={setModalOpen}>
                   <DialogTrigger asChild>
-                    <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                    <Button className="w-full bg-primary hover:opacity-90">
                       <Calendar className="h-4 w-4 mr-2" />
                       Agendar Consulta
                     </Button>
@@ -415,7 +468,7 @@ const PublicAgendamento = () => {
                         <DialogClose asChild>
                           <Button type="button" variant="outline">Cancelar</Button>
                         </DialogClose>
-                        <Button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+                        <Button type="submit" disabled={saving} className="bg-primary hover:opacity-90">
                           {saving ? 'Salvando...' : 'Confirmar Agendamento'}
                         </Button>
                       </DialogFooter>
@@ -423,9 +476,9 @@ const PublicAgendamento = () => {
                   </DialogContent>
                 </Dialog>
 
-                <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                  <h4 className="font-medium text-blue-800 mb-2">Como funciona</h4>
-                  <div className="space-y-2 text-sm text-blue-700">
+                <div className="mt-6 p-4 bg-purple-50 rounded-lg">
+                  <h4 className="font-medium text-purple-800 mb-2">Como funciona</h4>
+                  <div className="space-y-2 text-sm text-purple-700">
                     <p>1. Preencha seus dados pessoais</p>
                     <p>2. Escolha a data e horário desejados</p>
                     <p>3. Confirme o agendamento</p>

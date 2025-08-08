@@ -164,6 +164,59 @@ const Configuracoes = () => {
     fetchProfile();
   }, [user]);
 
+  // Carregar configurações do Supabase
+  useEffect(() => {
+    const loadSettings = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from('user_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (data) {
+        setSettings({
+          notifications: {
+            email: data.notifications_email,
+            sms: data.notifications_sms,
+            push: data.notifications_push,
+          },
+          privacy: {
+            publicProfile: data.privacy_public_profile,
+            showPhone: data.privacy_show_phone,
+            showEmail: data.privacy_show_email,
+            showSocialMedia: data.privacy_show_social_media,
+          },
+          preferences: {
+            theme: data.preferences_theme,
+            language: data.preferences_language,
+            timezone: data.preferences_timezone,
+          },
+          system: {
+            autoBackup: data.system_auto_backup,
+            dataRetention: data.system_data_retention,
+            sessionTimeout: data.system_session_timeout,
+          },
+        });
+
+        // Aplicar tema ao carregar
+        applyTheme(data.preferences_theme);
+      }
+    };
+    loadSettings();
+  }, [user]);
+
+  // Aplicar tema globalmente
+  const applyTheme = (theme: string) => {
+    const root = document.documentElement;
+    if (theme === 'auto') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      root.classList.toggle('dark', prefersDark);
+    } else {
+      root.classList.toggle('dark', theme === 'dark');
+    }
+  };
+
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !user) return;
@@ -237,12 +290,61 @@ const Configuracoes = () => {
   };
 
   const handleSaveSettings = async () => {
-    // Aqui você pode salvar as configurações no localStorage ou no banco
-    localStorage.setItem('agenda_settings', JSON.stringify(settings));
-    // Simular salvamento
-    setTimeout(() => {
-      console.log('Configurações salvas:', settings);
-    }, 1000);
+    if (!user) return;
+    const payload = {
+      user_id: user.id,
+      notifications_email: settings.notifications.email,
+      notifications_sms: settings.notifications.sms,
+      notifications_push: settings.notifications.push,
+      privacy_public_profile: settings.privacy.publicProfile,
+      privacy_show_phone: settings.privacy.showPhone,
+      privacy_show_email: settings.privacy.showEmail,
+      privacy_show_social_media: settings.privacy.showSocialMedia,
+      preferences_theme: settings.preferences.theme,
+      preferences_language: settings.preferences.language,
+      preferences_timezone: settings.preferences.timezone,
+      system_auto_backup: settings.system.autoBackup,
+      system_data_retention: settings.system.dataRetention,
+      system_session_timeout: settings.system.sessionTimeout,
+    };
+
+    // Upsert
+    const { error } = await supabase
+      .from('user_settings')
+      .upsert(payload, { onConflict: 'user_id' });
+
+    if (!error) {
+      applyTheme(settings.preferences.theme);
+    } else {
+      console.error('Erro ao salvar configurações', error);
+    }
+  };
+
+  // Alterar tema em tempo real ao trocar opção
+  useEffect(() => {
+    applyTheme(settings.preferences.theme);
+  }, [settings.preferences.theme]);
+
+  // Backup agora (mínimo viável): exporta dados do usuário em JSON
+  const runBackupNow = async () => {
+    if (!user) return;
+    const [ag, pc] = await Promise.all([
+      supabase.from('agendamentos').select('*').eq('user_id', user.id),
+      supabase.from('pacientes').select('*').eq('user_id', user.id),
+    ]);
+    const backup = {
+      generatedAt: new Date().toISOString(),
+      userId: user.id,
+      agendamentos: ag.data || [],
+      pacientes: pc.data || [],
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `backup-tricktime-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleSignOut = async () => {
@@ -253,7 +355,7 @@ const Configuracoes = () => {
     return (
       <div className="space-y-6">
         <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
           <p className="mt-2 text-muted-foreground">Carregando configurações...</p>
         </div>
       </div>
@@ -272,7 +374,7 @@ const Configuracoes = () => {
         </div>
         <Dialog open={modalOpen} onOpenChange={setModalOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => setModalOpen(true)} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={() => setModalOpen(true)} className="bg-primary hover:opacity-90">
               <User className="h-4 w-4 mr-2" />
               Editar Perfil
             </Button>
@@ -439,7 +541,7 @@ const Configuracoes = () => {
                 <DialogClose asChild>
                   <Button type="button" variant="outline">Cancelar</Button>
                 </DialogClose>
-                <Button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+                <Button type="submit" disabled={saving} className="bg-primary hover:opacity-90">
                   {saving ? 'Salvando...' : 'Salvar'}
                 </Button>
               </DialogFooter>
@@ -830,6 +932,10 @@ const Configuracoes = () => {
                   <SelectItem value="24_hours">24 horas</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={runBackupNow}>Fazer Backup Agora</Button>
             </div>
           </CardContent>
         </Card>

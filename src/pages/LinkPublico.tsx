@@ -257,7 +257,7 @@ const LinkPublico = () => {
     return (
       <div className="space-y-6">
         <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
           <p className="mt-2 text-muted-foreground">Carregando configurações...</p>
         </div>
       </div>
@@ -278,7 +278,7 @@ const LinkPublico = () => {
         </div>
         <Dialog open={modalOpen} onOpenChange={setModalOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => setModalOpen(true)} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={() => setModalOpen(true)} className="bg-primary hover:opacity-90">
               <Settings className="h-4 w-4 mr-2" />
               Configurar Perfil
             </Button>
@@ -444,7 +444,7 @@ const LinkPublico = () => {
                 <DialogClose asChild>
                   <Button type="button" variant="outline">Cancelar</Button>
                 </DialogClose>
-                <Button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+                <Button type="submit" disabled={saving} className="bg-primary hover:opacity-90">
                   {saving ? 'Salvando...' : 'Salvar'}
                 </Button>
               </DialogFooter>
@@ -622,8 +622,8 @@ const LinkPublico = () => {
         <CardContent>
           <div className="space-y-4">
             <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
-                <span className="text-blue-600 text-xs font-medium">1</span>
+              <div className="flex-shrink-0 w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center">
+                <span className="text-purple-600 text-xs font-medium">1</span>
               </div>
               <div>
                 <h4 className="font-medium">Configure seu perfil</h4>
@@ -634,8 +634,8 @@ const LinkPublico = () => {
             </div>
             
             <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
-                <span className="text-blue-600 text-xs font-medium">2</span>
+              <div className="flex-shrink-0 w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center">
+                <span className="text-purple-600 text-xs font-medium">2</span>
               </div>
               <div>
                 <h4 className="font-medium">Compartilhe o link</h4>
@@ -646,8 +646,8 @@ const LinkPublico = () => {
             </div>
             
             <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
-                <span className="text-blue-600 text-xs font-medium">3</span>
+              <div className="flex-shrink-0 w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center">
+                <span className="text-purple-600 text-xs font-medium">3</span>
               </div>
               <div>
                 <h4 className="font-medium">Pacientes agendam</h4>
@@ -658,8 +658,8 @@ const LinkPublico = () => {
             </div>
             
             <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
-                <span className="text-blue-600 text-xs font-medium">4</span>
+              <div className="flex-shrink-0 w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center">
+                <span className="text-purple-600 text-xs font-medium">4</span>
               </div>
               <div>
                 <h4 className="font-medium">Gerencie na agenda</h4>
@@ -683,31 +683,31 @@ const LinkPublico = () => {
         <CardContent>
           <div className="space-y-3">
             <div className="flex items-start gap-2">
-              <div className="w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
+              <div className="w-2 h-2 bg-primary rounded-full mt-2 flex-shrink-0"></div>
               <p className="text-sm text-muted-foreground">
                 Mantenha seu perfil sempre atualizado com informações precisas
               </p>
             </div>
             <div className="flex items-start gap-2">
-              <div className="w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
+              <div className="w-2 h-2 bg-primary rounded-full mt-2 flex-shrink-0"></div>
               <p className="text-sm text-muted-foreground">
                 Adicione uma foto profissional para maior credibilidade
               </p>
             </div>
             <div className="flex items-start gap-2">
-              <div className="w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
+              <div className="w-2 h-2 bg-primary rounded-full mt-2 flex-shrink-0"></div>
               <p className="text-sm text-muted-foreground">
                 Compartilhe o link em suas redes sociais e site profissional
               </p>
             </div>
             <div className="flex items-start gap-2">
-              <div className="w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
+              <div className="w-2 h-2 bg-primary rounded-full mt-2 flex-shrink-0"></div>
               <p className="text-sm text-muted-foreground">
                 Monitore regularmente os agendamentos na seção Agenda
               </p>
             </div>
             <div className="flex items-start gap-2">
-              <div className="w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
+              <div className="w-2 h-2 bg-primary rounded-full mt-2 flex-shrink-0"></div>
               <p className="text-sm text-muted-foreground">
                 Configure horários disponíveis para receber agendamentos
               </p>

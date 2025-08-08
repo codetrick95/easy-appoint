@@ -48,7 +48,7 @@ export function AppSidebar() {
               <Calendar className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="font-bold text-lg">AgendaMédica</h1>
+              <h1 className="font-bold text-lg">TrickTime</h1>
               <p className="text-sm text-muted-foreground">Sistema de Agendamentos</p>
             </div>
           </div>

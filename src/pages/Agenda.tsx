@@ -59,7 +59,7 @@ const Agenda = () => {
 
   const statusColors = {
     agendado: 'bg-green-100 text-green-800',
-    confirmado: 'bg-blue-100 text-blue-800',
+    confirmado: 'bg-purple-100 text-purple-800',
     cancelado: 'bg-red-100 text-red-800',
     concluido: 'bg-gray-100 text-gray-800'
   };
@@ -69,7 +69,7 @@ const Agenda = () => {
     return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
   };
 
-  // Função para verificar conflitos de agendamento
+  // Função para verificar conflitos de agendamento (apenas sobreposição real)
   const checkSchedulingConflict = (dataHora: Date, duracaoMinutos: number, excludeId?: string) => {
     const startTime = dataHora;
     const endTime = new Date(startTime.getTime() + duracaoMinutos * 60000);
@@ -81,16 +81,47 @@ const Agenda = () => {
       const appointmentStart = parseISO(agendamento.data_hora);
       const appointmentEnd = new Date(appointmentStart.getTime() + agendamento.duracao_minutos * 60000);
       
-      // Verificar sobreposição
-      return (
-        (startTime < appointmentEnd && endTime > appointmentStart) ||
-        // Verificar se há menos de 1 hora entre agendamentos
-        Math.abs(startTime.getTime() - appointmentEnd.getTime()) < 60 * 60 * 1000 || // 1 hora antes
-        Math.abs(appointmentStart.getTime() - endTime.getTime()) < 60 * 60 * 1000     // 1 hora depois
-      );
+      // Verificar sobreposição estrita (intervalos [start, end))
+      return (startTime < appointmentEnd && endTime > appointmentStart);
     });
     
     return conflictingAppointment;
+  };
+
+  // Verificar conflitos contra o banco (mais robusto, cobre visões diferentes)
+  const checkConflictFromDatabase = async (
+    dataHora: Date,
+    duracaoMinutos: number,
+    excludeId?: string
+  ) => {
+    if (!user) return null;
+    const dayStart = startOfDay(dataHora);
+    const dayEnd = endOfDay(dataHora);
+
+    const { data, error } = await supabase
+      .from('agendamentos')
+      .select('id, data_hora, duracao_minutos, status')
+      .eq('user_id', user.id)
+      .gte('data_hora', dayStart.toISOString())
+      .lte('data_hora', dayEnd.toISOString());
+
+    if (error) {
+      console.error('Erro ao checar conflitos no banco:', error);
+      return null;
+    }
+
+    const startTime = dataHora;
+    const endTime = new Date(startTime.getTime() + duracaoMinutos * 60000);
+
+    return (data || []).find((agendamento) => {
+      if (excludeId && agendamento.id === excludeId) return false;
+      if (agendamento.status === 'cancelado') return false;
+      const appointmentStart = parseISO(agendamento.data_hora);
+      const appointmentEnd = new Date(
+        appointmentStart.getTime() + agendamento.duracao_minutos * 60000
+      );
+      return startTime < appointmentEnd && endTime > appointmentStart;
+    }) || null;
   };
 
   const getStatusText = (status: string) => {
@@ -185,14 +216,13 @@ const Agenda = () => {
         .eq('user_id', user.id)
         .gte('data_hora', startDate.toISOString())
         .lte('data_hora', endDate.toISOString())
+        .in('status', ['agendado', 'confirmado'])
         .order('data_hora', { ascending: true });
 
       if (error) {
         console.error('Erro ao carregar agendamentos:', error);
       } else {
-        // Filtrar agendamentos concluídos para não aparecerem na agenda
-        const filteredData = (data || []).filter(agendamento => agendamento.status !== 'concluido');
-        setAgendamentos(filteredData);
+        setAgendamentos(data || []);
       }
     } catch (error) {
       console.error('Erro ao carregar agendamentos:', error);
@@ -242,7 +272,7 @@ const Agenda = () => {
       // Converter a data/hora para o fuso horário local
       const dataHoraLocal = new Date(form.data_hora);
       
-      // Verificar conflitos de agendamento
+      // Verificar conflitos de agendamento em memória
       const conflictingAppointment = checkSchedulingConflict(
         dataHoraLocal, 
         parseInt(form.duracao_minutos), 
@@ -250,7 +280,19 @@ const Agenda = () => {
       );
       
       if (conflictingAppointment) {
-        alert(`Conflito de agendamento! Já existe um agendamento para ${conflictingAppointment.nome_paciente} às ${formatTime(conflictingAppointment.data_hora)}. Por favor, escolha outro horário com pelo menos 1 hora de intervalo.`);
+        alert(`Conflito de agendamento! Já existe um agendamento às ${formatTime(conflictingAppointment.data_hora)}. Escolha outro horário que não sobreponha.`);
+        setSaving(false);
+        return;
+      }
+
+      // Verificar conflitos consultando o banco (robusto contra visão diferente/estado desatualizado)
+      const dbConflict = await checkConflictFromDatabase(
+        dataHoraLocal,
+        parseInt(form.duracao_minutos),
+        editAgendamento?.id
+      );
+      if (dbConflict) {
+        alert('Horário indisponível. Escolha outro horário que não sobreponha nenhum agendamento.');
         setSaving(false);
         return;
       }
@@ -283,8 +325,12 @@ const Agenda = () => {
 
       setModalOpen(false);
       fetchAgendamentos();
-    } catch (error) {
-      console.error('Erro ao salvar agendamento:', error);
+    } catch (error: any) {
+      if (error?.code === '23P01') {
+        alert('Horário já ocupado. Tente outro horário.');
+      } else {
+        console.error('Erro ao salvar agendamento:', error);
+      }
     } finally {
       setSaving(false);
     }
@@ -416,7 +462,7 @@ const Agenda = () => {
                     agendamento.status === 'agendado' 
                       ? 'bg-green-50 border-green-200 hover:bg-green-100' 
                       : agendamento.status === 'confirmado'
-                      ? 'bg-blue-50 border-blue-200 hover:bg-blue-100'
+                      ? 'bg-purple-50 border-purple-200 hover:bg-purple-100'
                       : agendamento.status === 'cancelado'
                       ? 'bg-red-50 border-red-200 hover:bg-red-100'
                       : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
@@ -427,7 +473,7 @@ const Agenda = () => {
                       <div className="flex items-center gap-3 mb-2">
                         <User className={`h-4 w-4 ${
                           agendamento.status === 'agendado' ? 'text-green-600' :
-                          agendamento.status === 'confirmado' ? 'text-blue-600' :
+                          agendamento.status === 'confirmado' ? 'text-purple-600' :
                           agendamento.status === 'cancelado' ? 'text-red-600' :
                           'text-gray-600'
                         }`} />
@@ -441,7 +487,7 @@ const Agenda = () => {
                       
                       <div className={`flex items-center gap-4 text-sm ${
                         agendamento.status === 'agendado' ? 'text-green-600' :
-                        agendamento.status === 'confirmado' ? 'text-blue-600' :
+                        agendamento.status === 'confirmado' ? 'text-purple-600' :
                         agendamento.status === 'cancelado' ? 'text-red-600' :
                         'text-gray-600'
                       }`}>
@@ -552,12 +598,12 @@ const Agenda = () => {
           const isToday = isSameDay(day, new Date());
           
           return (
-            <div key={index} className={`p-2 border rounded-lg ${isToday ? 'bg-blue-50 border-blue-200' : ''}`}>
+            <div key={index} className={`p-2 border rounded-lg ${isToday ? 'bg-purple-50 border-purple-200' : ''}`}>
               <div className="text-center mb-2">
                 <div className="text-xs text-gray-500">
                   {format(day, 'EEE', { locale: ptBR })}
                 </div>
-                <div className={`font-medium ${isToday ? 'text-blue-600' : ''}`}>
+                <div className={`font-medium ${isToday ? 'text-purple-600' : ''}`}>
                   {format(day, 'dd')}
                 </div>
               </div>
@@ -570,7 +616,7 @@ const Agenda = () => {
                       agendamento.status === 'agendado' 
                         ? 'bg-green-100 hover:bg-green-200' 
                         : agendamento.status === 'confirmado'
-                        ? 'bg-blue-100 hover:bg-blue-200'
+                        ? 'bg-purple-100 hover:bg-purple-200'
                         : agendamento.status === 'cancelado'
                         ? 'bg-red-100 hover:bg-red-200'
                         : 'bg-gray-100 hover:bg-gray-200'
@@ -579,7 +625,7 @@ const Agenda = () => {
                   >
                     <div className={`font-bold truncate ${
                       agendamento.status === 'agendado' ? 'text-green-800' :
-                      agendamento.status === 'confirmado' ? 'text-blue-800' :
+                      agendamento.status === 'confirmado' ? 'text-purple-800' :
                       agendamento.status === 'cancelado' ? 'text-red-800' :
                       'text-gray-800'
                     }`}>
@@ -635,7 +681,7 @@ const Agenda = () => {
             <div 
               key={index} 
               className={`p-2 border rounded-lg min-h-[80px] ${
-                isToday ? 'bg-blue-50 border-blue-200' : ''
+                isToday ? 'bg-purple-50 border-purple-200' : ''
               } ${!isCurrentMonth ? 'bg-gray-50' : ''}`}
             >
               <div className={`text-right text-sm ${!isCurrentMonth ? 'text-gray-400' : ''}`}>
@@ -650,7 +696,7 @@ const Agenda = () => {
                       agendamento.status === 'agendado' 
                         ? 'bg-green-100 hover:bg-green-200' 
                         : agendamento.status === 'confirmado'
-                        ? 'bg-blue-100 hover:bg-blue-200'
+                        ? 'bg-purple-100 hover:bg-purple-200'
                         : agendamento.status === 'cancelado'
                         ? 'bg-red-100 hover:bg-red-200'
                         : 'bg-gray-100 hover:bg-gray-200'
@@ -659,7 +705,7 @@ const Agenda = () => {
                   >
                     <div className={`font-bold truncate ${
                       agendamento.status === 'agendado' ? 'text-green-800' :
-                      agendamento.status === 'confirmado' ? 'text-blue-800' :
+                      agendamento.status === 'confirmado' ? 'text-purple-800' :
                       agendamento.status === 'cancelado' ? 'text-red-800' :
                       'text-gray-800'
                     }`}>
@@ -709,7 +755,7 @@ const Agenda = () => {
           const isCurrentMonth = isSameMonth(month, new Date());
           
           return (
-            <div key={index} className={`p-4 border rounded-lg ${isCurrentMonth ? 'bg-blue-50 border-blue-200' : ''}`}>
+            <div key={index} className={`p-4 border rounded-lg ${isCurrentMonth ? 'bg-purple-50 border-purple-200' : ''}`}>
               <div className="text-center mb-3">
                 <div className="font-medium">{format(month, 'MMMM', { locale: ptBR })}</div>
                 <div className="text-sm text-gray-500">{monthAgendamentos.length} agendamentos</div>
@@ -749,7 +795,7 @@ const Agenda = () => {
         </div>
         <Dialog open={modalOpen} onOpenChange={setModalOpen}>
           <DialogTrigger asChild>
-            <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={openNew} className="bg-primary hover:opacity-90">
               <Plus className="h-4 w-4 mr-2" />
               Novo Agendamento
             </Button>
@@ -845,7 +891,7 @@ const Agenda = () => {
                 <DialogClose asChild>
                   <Button type="button" variant="outline">Cancelar</Button>
                 </DialogClose>
-                <Button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+                 <Button type="submit" disabled={saving} className="bg-primary hover:opacity-90">
                   {saving ? 'Salvando...' : 'Salvar'}
                 </Button>
               </DialogFooter>
@@ -924,7 +970,7 @@ const Agenda = () => {
         <CardContent>
           {loading ? (
             <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
               <p className="mt-2 text-muted-foreground">Carregando agendamentos...</p>
             </div>
           ) : (

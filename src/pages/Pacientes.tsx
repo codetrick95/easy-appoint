@@ -317,7 +317,7 @@ const Pacientes = () => {
         </div>
         <Dialog open={modalOpen} onOpenChange={setModalOpen}>
           <DialogTrigger asChild>
-            <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={openNew} className="bg-primary hover:opacity-90">
               <Plus className="h-4 w-4 mr-2" />
               Novo Paciente
             </Button>
@@ -592,7 +592,7 @@ const Pacientes = () => {
                 <DialogClose asChild>
                   <Button type="button" variant="outline">Cancelar</Button>
                 </DialogClose>
-                <Button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+                <Button type="submit" disabled={saving} className="bg-primary hover:opacity-90">
                   {saving ? 'Salvando...' : 'Salvar'}
                 </Button>
               </DialogFooter>
@@ -643,7 +643,7 @@ const Pacientes = () => {
         <CardContent>
           {loading ? (
             <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
               <p className="mt-2 text-muted-foreground">Carregando pacientes...</p>
             </div>
           ) : filteredPacientes.length === 0 ? (
