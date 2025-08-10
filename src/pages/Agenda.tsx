@@ -660,7 +660,13 @@ const Agenda = () => {
   const renderMonthlyView = () => {
     const monthStart = startOfMonth(selectedDate);
     const monthEnd = endOfMonth(selectedDate);
-    const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+    
+    // Calcular o início da semana que contém o primeiro dia do mês
+    const calendarStart = startOfWeek(monthStart, { locale: ptBR });
+    const calendarEnd = endOfWeek(monthEnd, { locale: ptBR });
+    
+    // Gerar todos os dias do calendário (incluindo dias de outros meses)
+    const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
 
     return (
       <div className="grid grid-cols-7 gap-1">
@@ -671,8 +677,8 @@ const Agenda = () => {
           </div>
         ))}
         
-        {/* Dias do mês */}
-        {monthDays.map((day, index) => {
+        {/* Dias do calendário */}
+        {calendarDays.map((day, index) => {
           const dayAgendamentos = getAgendamentosForDate(day);
           const isToday = isSameDay(day, new Date());
           const isCurrentMonth = isSameMonth(day, selectedDate);

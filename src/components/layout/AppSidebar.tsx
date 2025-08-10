@@ -15,6 +15,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/ui/logo";
 
 const navigation = [
   { title: "Dashboard", url: "/", icon: Home },
@@ -43,21 +44,11 @@ export function AppSidebar() {
     <Sidebar className={collapsed ? "w-14" : "w-64"} collapsible="icon">
       <SidebarHeader className="p-4">
         {!collapsed && (
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-primary rounded-lg">
-              <Calendar className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="font-bold text-lg">TrickTime</h1>
-              <p className="text-sm text-muted-foreground">Sistema de Agendamentos</p>
-            </div>
-          </div>
+          <Logo size="md" />
         )}
         {collapsed && (
           <div className="flex justify-center">
-            <div className="p-2 bg-primary rounded-lg">
-              <Calendar className="h-6 w-6 text-primary-foreground" />
-            </div>
+            <Logo size="sm" showText={false} />
           </div>
         )}
       </SidebarHeader>

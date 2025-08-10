@@ -48,6 +48,20 @@ interface ExtendedProfile extends Profile {
   linkedin?: string;
 }
 
+// Interface para configurações de privacidade
+interface PrivacySettings {
+  publicProfile: boolean;
+  showPhone: boolean;
+  showEmail: boolean;
+  showSocialMedia: boolean;
+}
+
+type WorkingHoursDay = { enabled: boolean; start: string; end: string };
+type WorkingHours = {
+  sun: WorkingHoursDay; mon: WorkingHoursDay; tue: WorkingHoursDay; wed: WorkingHoursDay;
+  thu: WorkingHoursDay; fri: WorkingHoursDay; sat: WorkingHoursDay;
+};
+
 interface Agendamento {
   id: string;
   nome_paciente: string;
@@ -62,6 +76,13 @@ interface Agendamento {
 const PublicAgendamento = () => {
   const { linkId } = useParams();
   const [profile, setProfile] = useState<ExtendedProfile | null>(null);
+  const [privacySettings, setPrivacySettings] = useState<PrivacySettings>({
+    publicProfile: true,
+    showPhone: true,
+    showEmail: true,
+    showSocialMedia: true
+  });
+  const [workingHours, setWorkingHours] = useState<WorkingHours | null>(null);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -107,11 +128,55 @@ const PublicAgendamento = () => {
       } else {
         const extendedProfile = loadExtendedProfile(data);
         setProfile(extendedProfile);
+        
+        // Carregar configurações de privacidade e horários
+        loadPublicSettings(data.user_id);
       }
     } catch (error) {
       console.error('Erro ao carregar perfil:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPublicSettings = async (userId: string) => {
+    try {
+      // Usar o cliente Supabase sem autenticação para acessar configurações públicas
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('privacy_public_profile, privacy_show_phone, privacy_show_email, privacy_show_social_media, working_hours')
+        .eq('user_id', userId)
+        .single();
+
+      if (!error && data) {
+        setPrivacySettings({
+          publicProfile: data.privacy_public_profile ?? true,
+          showPhone: data.privacy_show_phone ?? true,
+          showEmail: data.privacy_show_email ?? true,
+          showSocialMedia: data.privacy_show_social_media ?? true
+        });
+        setWorkingHours(data.working_hours || null);
+      } else {
+        // Se não conseguir carregar, usar valores padrão
+        console.log('Usando configurações padrão de privacidade');
+        setPrivacySettings({
+          publicProfile: true,
+          showPhone: true,
+          showEmail: true,
+          showSocialMedia: true
+        });
+        setWorkingHours(null);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar configurações de privacidade:', error);
+      // Usar valores padrão em caso de erro
+      setPrivacySettings({
+        publicProfile: true,
+        showPhone: true,
+        showEmail: true,
+        showSocialMedia: true
+      });
+      setWorkingHours(null);
     }
   };
 
@@ -150,6 +215,28 @@ const PublicAgendamento = () => {
     try {
       // Converter a data/hora para o fuso horário local
       const dataHoraLocal = new Date(form.data_hora);
+
+      // Validar horário de atendimento do profissional
+      if (workingHours) {
+        const weekday = dataHoraLocal.getDay(); // 0=Dom, 6=Sáb
+        const keys = ['sun','mon','tue','wed','thu','fri','sat'] as const;
+        const dayCfg = (workingHours as any)[keys[weekday]] as WorkingHoursDay;
+        if (!dayCfg?.enabled) {
+          alert('O profissional não atende neste dia. Escolha outro dia.');
+          setSaving(false);
+          return;
+        }
+        const [sh, sm] = dayCfg.start.split(':').map(Number);
+        const [eh, em] = dayCfg.end.split(':').map(Number);
+        const startMinutes = sh * 60 + sm;
+        const endMinutes = eh * 60 + em;
+        const curMinutes = dataHoraLocal.getHours() * 60 + dataHoraLocal.getMinutes();
+        if (curMinutes < startMinutes || curMinutes >= endMinutes) {
+          alert(`Horário fora do atendimento (${dayCfg.start} - ${dayCfg.end}).`);
+          setSaving(false);
+          return;
+        }
+      }
       const dayStart = startOfDay(dataHoraLocal);
       const dayEnd = endOfDay(dataHoraLocal);
       
@@ -242,6 +329,23 @@ const PublicAgendamento = () => {
     );
   }
 
+  // Verificar se o perfil público está desativado
+  if (!privacySettings.publicProfile) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Card className="max-w-md">
+          <CardContent className="p-6 text-center">
+            <AlertCircle className="h-12 w-12 text-orange-500 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Perfil Privado</h2>
+            <p className="text-muted-foreground">
+              Este perfil está configurado como privado e não está disponível para agendamentos públicos.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (success) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -306,27 +410,29 @@ const PublicAgendamento = () => {
                   <div>
                     <h3 className="font-medium">{profile.nome}</h3>
                     {profile.especialidade && (
-                      <Badge variant="secondary">{profile.especialidade}</Badge>
+                      <Badge className="bg-primary text-primary-foreground">{profile.especialidade}</Badge>
                     )}
                   </div>
                 </div>
                 
                 <div className="space-y-3">
-                  {profile.telefone && (
+                  {profile.telefone && privacySettings.showPhone && (
                     <div className="flex items-center gap-2 text-sm">
                       <Phone className="h-4 w-4 text-muted-foreground" />
                       <span>{profile.telefone}</span>
                     </div>
                   )}
                   
-                  <div className="flex items-center gap-2 text-sm">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span>{profile.email}</span>
-                  </div>
+                  {privacySettings.showEmail && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      <span>{profile.email}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Redes Sociais */}
-                {(profile.instagram || profile.tiktok || profile.facebook || profile.linkedin) && (
+                {privacySettings.showSocialMedia && (profile.instagram || profile.tiktok || profile.facebook || profile.linkedin) && (
                   <div className="pt-4 border-t">
                     <h4 className="font-medium mb-2">Redes Sociais</h4>
                     <div className="flex flex-wrap gap-2">

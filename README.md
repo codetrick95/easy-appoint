@@ -1,73 +1,66 @@
-# Welcome to your Lovable project
+# TrickTime - Sistema de Agendamentos
 
-## Project info
+Sistema completo de agendamentos para profissionais da saúde e outros serviços.
 
-**URL**: https://lovable.dev/projects/5424fc26-f93c-4895-acf7-5c1b20485e3a
+## Sobre o Projeto
 
-## How can I edit this code?
+O TrickTime é uma plataforma moderna e intuitiva para gerenciamento de agendamentos, desenvolvida com as melhores tecnologias:
 
-There are several ways of editing your application.
+- **Framework**: React 18 com TypeScript
+- **Estilização**: Tailwind CSS com componentes shadcn/ui
+- **Build Tool**: Vite
+- **Banco de Dados**: Supabase (PostgreSQL)
+- **Autenticação**: Supabase Auth
+- **Deploy**: Preparado para Vercel
 
-**Use Lovable**
+## Funcionalidades
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/5424fc26-f93c-4895-acf7-5c1b20485e3a) and start prompting.
+- 📅 **Agendamento Inteligente**: Sistema de agendamentos com verificação de conflitos
+- 👥 **Gestão de Pacientes**: Cadastro completo de pacientes com histórico
+- 🔗 **Link Público**: Compartilhamento de link para agendamentos públicos
+- ⚙️ **Configurações de Privacidade**: Controle total sobre informações exibidas
+- 📊 **Dashboard**: Visão geral dos agendamentos e estatísticas
+- 🎨 **Interface Moderna**: Design responsivo e intuitivo
 
-Changes made via Lovable will be committed automatically to this repo.
+## Tecnologias Utilizadas
 
-**Use your preferred IDE**
+- React 18 + TypeScript
+- Tailwind CSS + shadcn/ui
+- Supabase (PostgreSQL + Auth)
+- Vite
+- React Router DOM
+- Lucide React (Ícones)
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Como Executar Localmente
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+# Clone o repositório
+git clone <URL_DO_REPOSITORIO>
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Navegue para o diretório do projeto
+cd easy-appoint
 
-# Step 3: Install the necessary dependencies.
-npm i
+# Instale as dependências
+npm install
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Configure as variáveis de ambiente do Supabase
+# Copie o arquivo .env.example para .env e preencha as credenciais
+
+# Inicie o servidor de desenvolvimento
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## Deploy
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+O projeto está configurado para deploy na Vercel com as seguintes configurações:
 
-**Use GitHub Codespaces**
+- **Build Command**: `npm run build`
+- **Output Directory**: `dist`
+- **Install Command**: `npm install`
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Configuração do Banco de Dados
 
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/5424fc26-f93c-4895-acf7-5c1b20485e3a) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+1. Crie uma conta no [Supabase](https://supabase.com)
+2. Crie um novo projeto
+3. Execute as migrações SQL na pasta `supabase/migrations/`
+4. Configure as variáveis de ambiente com as credenciais do Supabase

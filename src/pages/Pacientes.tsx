@@ -708,7 +708,7 @@ const Pacientes = () => {
                       <TableCell>
                         <div className="space-y-1">
                           {paciente.convenio && (
-                            <Badge variant="secondary">{paciente.convenio}</Badge>
+                            <Badge className="bg-muted text-muted-foreground">{paciente.convenio}</Badge>
                           )}
                           {paciente.numero_carteirinha && (
                             <div className="text-xs text-muted-foreground">

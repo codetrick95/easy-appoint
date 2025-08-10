@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Logo } from '@/components/ui/logo';
 
 const Auth = () => {
   const [email, setEmail] = useState('');
@@ -59,9 +60,9 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center p-6">
       <Card className="w-full max-w-lg">
         <CardHeader className="text-center">
-          <CardTitle className="text-4xl font-extrabold tracking-tight bg-clip-text text-transparent" style={{backgroundImage: 'linear-gradient(90deg, #7B3FE4 0%, #5B7CFF 100%)'}}>
-            TrickTime
-          </CardTitle>
+          <div className="flex justify-center mb-4">
+            <Logo size="lg" />
+          </div>
           <CardDescription className="text-base">Acesso exclusivo para clientes. Seu login é liberado pela equipe TrickTime.</CardDescription>
         </CardHeader>
         <CardContent>

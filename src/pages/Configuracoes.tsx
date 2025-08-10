@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Settings, 
   User, 
@@ -58,6 +59,7 @@ interface ExtendedProfile extends Profile {
 
 const Configuracoes = () => {
   const { user, signOut } = useAuth();
+  const { toast } = useToast();
   const [profile, setProfile] = useState<ExtendedProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -101,6 +103,24 @@ const Configuracoes = () => {
       sessionTimeout: '8_hours'
     }
   });
+
+  type WorkingHoursDay = { enabled: boolean; start: string; end: string };
+  type WorkingHours = {
+    sun: WorkingHoursDay; mon: WorkingHoursDay; tue: WorkingHoursDay; wed: WorkingHoursDay;
+    thu: WorkingHoursDay; fri: WorkingHoursDay; sat: WorkingHoursDay;
+  };
+
+  const defaultWorkingHours: WorkingHours = {
+    sun: { enabled: false, start: '08:00', end: '18:00' },
+    mon: { enabled: true,  start: '08:00', end: '18:00' },
+    tue: { enabled: true,  start: '08:00', end: '18:00' },
+    wed: { enabled: true,  start: '08:00', end: '18:00' },
+    thu: { enabled: true,  start: '08:00', end: '18:00' },
+    fri: { enabled: true,  start: '08:00', end: '18:00' },
+    sat: { enabled: false, start: '08:00', end: '12:00' },
+  };
+
+  const [workingHours, setWorkingHours] = useState<WorkingHours>(defaultWorkingHours);
 
   // Função para carregar dados adicionais do localStorage
   const loadExtendedProfile = (baseProfile: Profile): ExtendedProfile => {
@@ -199,8 +219,15 @@ const Configuracoes = () => {
           },
         });
 
+        // Horários de atendimento
+        setWorkingHours(data.working_hours || defaultWorkingHours);
+
         // Aplicar tema ao carregar
         applyTheme(data.preferences_theme);
+      } else {
+        // Se ainda não existir registro em user_settings, cria com defaults
+        await supabase.from('user_settings').insert({ user_id: user.id }).onConflict('user_id');
+        setWorkingHours(defaultWorkingHours);
       }
     };
     loadSettings();
@@ -306,6 +333,7 @@ const Configuracoes = () => {
       system_auto_backup: settings.system.autoBackup,
       system_data_retention: settings.system.dataRetention,
       system_session_timeout: settings.system.sessionTimeout,
+      working_hours: workingHours,
     };
 
     // Upsert
@@ -315,8 +343,34 @@ const Configuracoes = () => {
 
     if (!error) {
       applyTheme(settings.preferences.theme);
+      // Recarregar para garantir que working_hours persistiu no banco
+      const { data: fresh } = await supabase
+        .from('user_settings')
+        .select('working_hours')
+        .eq('user_id', user.id)
+        .single();
+      if (fresh?.working_hours) setWorkingHours(fresh.working_hours);
+      toast({ title: 'Configurações salvas', description: 'Suas preferências e horário de atendimento foram atualizados.' });
     } else {
+      // Se a coluna working_hours ainda não existir no banco remoto,
+      // tenta salvar sem ela para não bloquear as demais configurações
+      const missingColumn = (error as any)?.code === '42703' || String((error as any)?.message || '').includes('working_hours');
+      if (missingColumn) {
+        const { working_hours, ...payloadNoWH } = payload as any;
+        const { error: err2 } = await supabase
+          .from('user_settings')
+          .upsert(payloadNoWH, { onConflict: 'user_id' });
+        if (!err2) {
+          toast({
+            title: 'Preferências salvas (parcial)',
+            description: 'Suas preferências foram salvas, mas o horário de atendimento não foi aplicado. Execute o SQL para criar a coluna working_hours.',
+          });
+          return;
+        }
+      }
+
       console.error('Erro ao salvar configurações', error);
+      toast({ title: 'Erro ao salvar', description: 'Não foi possível salvar as configurações. Detalhes: ' + String((error as any)?.message || ''), variant: 'destructive' });
     }
   };
 
@@ -551,6 +605,67 @@ const Configuracoes = () => {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
+        {/* Horário de Atendimento */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Horário de Atendimento
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {[
+              { key: 'sun', label: 'Domingo' },
+              { key: 'mon', label: 'Segunda' },
+              { key: 'tue', label: 'Terça' },
+              { key: 'wed', label: 'Quarta' },
+              { key: 'thu', label: 'Quinta' },
+              { key: 'fri', label: 'Sexta' },
+              { key: 'sat', label: 'Sábado' },
+            ].map((d: any) => (
+              <div key={d.key} className="grid grid-cols-12 items-center gap-3">
+                <div className="col-span-4 md:col-span-3 text-sm">{d.label}</div>
+                <div className="col-span-3 md:col-span-2">
+                  <Switch
+                    checked={(workingHours as any)[d.key].enabled}
+                    onCheckedChange={(checked) =>
+                      setWorkingHours((wh) => ({
+                        ...wh,
+                        [d.key]: { ...((wh as any)[d.key] as WorkingHoursDay), enabled: checked },
+                      }))
+                    }
+                  />
+                </div>
+                <div className="col-span-5 md:col-span-7 grid grid-cols-2 gap-2">
+                  <Input
+                    type="time"
+                    value={(workingHours as any)[d.key].start}
+                    onChange={(e) =>
+                      setWorkingHours((wh) => ({
+                        ...wh,
+                        [d.key]: { ...((wh as any)[d.key] as WorkingHoursDay), start: e.target.value },
+                      }))
+                    }
+                    disabled={!((workingHours as any)[d.key].enabled)}
+                  />
+                  <Input
+                    type="time"
+                    value={(workingHours as any)[d.key].end}
+                    onChange={(e) =>
+                      setWorkingHours((wh) => ({
+                        ...wh,
+                        [d.key]: { ...((wh as any)[d.key] as WorkingHoursDay), end: e.target.value },
+                      }))
+                    }
+                    disabled={!((workingHours as any)[d.key].enabled)}
+                  />
+                </div>
+              </div>
+            ))}
+            <p className="text-xs text-muted-foreground">Clientes só poderão agendar dentro destes horários.</p>
+          </CardContent>
+        </Card>
+
         {/* Perfil do Usuário */}
         <Card>
           <CardHeader>
@@ -943,7 +1058,7 @@ const Configuracoes = () => {
 
       {/* Ações */}
       <div className="flex gap-4">
-        <Button onClick={handleSaveSettings} className="bg-green-600 hover:bg-green-700">
+        <Button onClick={handleSaveSettings} className="bg-primary hover:bg-primary/90">
           <Save className="h-4 w-4 mr-2" />
           Salvar Configurações
         </Button>
@@ -976,7 +1091,7 @@ const Configuracoes = () => {
             </div>
             <div>
               <Label className="text-sm font-medium">Status</Label>
-              <Badge variant="secondary">Online</Badge>
+              <Badge className="bg-green-100 text-green-800">Online</Badge>
             </div>
           </div>
         </CardContent>

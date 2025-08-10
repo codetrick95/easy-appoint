@@ -8,7 +8,7 @@ import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFoo
 import { Calendar, Users, Clock, CheckCircle, Plus, Eye, EyeOff, Edit, Phone, Mail, MapPin, ArrowRight, Trash2, CalendarDays } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { format, parseISO, isToday, isTomorrow, isThisWeek } from 'date-fns';
+import { format, parseISO, isToday, isTomorrow, isThisWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface Stats {
@@ -41,7 +41,7 @@ const Dashboard = () => {
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('todos');
-  const [filterPeriod, setFilterPeriod] = useState<string>('proximos');
+  const [filterPeriod, setFilterPeriod] = useState<string>('mes');
   const [showAgendamentos, setShowAgendamentos] = useState(true);
   const [selectedAgendamento, setSelectedAgendamento] = useState<Agendamento | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -129,17 +129,19 @@ const Dashboard = () => {
         const proximosSete = new Date(hoje.getTime() + 7 * 24 * 60 * 60 * 1000);
         query = query.gte('data_hora', hoje.toISOString()).lt('data_hora', proximosSete.toISOString());
       } else if (filterPeriod === 'mes') {
-        const proximosTrinta = new Date(hoje.getTime() + 30 * 24 * 60 * 60 * 1000);
-        query = query.gte('data_hora', hoje.toISOString()).lt('data_hora', proximosTrinta.toISOString());
+        const inicioMes = startOfMonth(hoje);
+        const fimMes = endOfMonth(hoje);
+        const fimMesMaisUmDia = new Date(fimMes.getTime() + 24 * 60 * 60 * 1000);
+        query = query
+          .gte('data_hora', inicioMes.toISOString())
+          .lt('data_hora', fimMesMaisUmDia.toISOString());
       }
 
       // Filtrar por status
       if (filterStatus !== 'todos') {
         query = query.eq('status', filterStatus as 'agendado' | 'confirmado' | 'cancelado' | 'concluido');
-      } else {
-        // Por padrão, ocultar concluídos e cancelados
-        query = query.in('status', ['agendado', 'confirmado']);
       }
+      // Se for 'todos', não aplicar filtro de status (mostrar todos os status)
 
       const { data, error } = await query;
 
