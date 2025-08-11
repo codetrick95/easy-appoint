@@ -13,6 +13,7 @@ import PublicAgendamento from "./pages/PublicAgendamento";
 import Configuracoes from "./pages/Configuracoes";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import Admin from "./pages/Admin";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ const App = () => (
             <Route path="/pacientes" element={<Layout><Pacientes /></Layout>} />
             <Route path="/link-publico" element={<Layout><LinkPublico /></Layout>} />
             <Route path="/configuracoes" element={<Layout><Configuracoes /></Layout>} />
+            <Route path="/admin" element={<Layout><Admin /></Layout>} />
             {/* ROTAS PÚBLICAS */}
             <Route path="/public/:linkId" element={<PublicAgendamento />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

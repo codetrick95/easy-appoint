@@ -1,6 +1,8 @@
-import { Calendar, Users, Settings, LogOut, Link as LinkIcon, Home } from "lucide-react";
+import { Calendar, Users, Settings, LogOut, Link as LinkIcon, Home, ShieldCheck } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar,
   SidebarContent,
@@ -23,12 +25,27 @@ const navigation = [
   { title: "Pacientes", url: "/pacientes", icon: Users },
   { title: "Link Público", url: "/link-publico", icon: LinkIcon },
   { title: "Configurações", url: "/configuracoes", icon: Settings },
+  { title: "Admin", url: "/admin", icon: ShieldCheck },
 ];
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      if (!user) return setIsAdmin(false);
+      const { data } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('user_id', user.id)
+        .single();
+      setIsAdmin(Boolean(data?.is_admin));
+    };
+    load();
+  }, [user]);
   const currentPath = location.pathname;
   const collapsed = state === "collapsed";
 
@@ -58,7 +75,9 @@ export function AppSidebar() {
           <SidebarGroupLabel>Menu Principal</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navigation.map((item) => (
+              {navigation
+                .filter(item => item.title !== 'Admin' || isAdmin)
+                .map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink to={item.url} className={getNavCls}>

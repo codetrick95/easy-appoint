@@ -62,6 +62,16 @@ type WorkingHours = {
   thu: WorkingHoursDay; fri: WorkingHoursDay; sat: WorkingHoursDay;
 };
 
+const defaultWorkingHours: WorkingHours = {
+  sun: { enabled: false, start: '08:00', end: '18:00' },
+  mon: { enabled: true,  start: '08:00', end: '18:00' },
+  tue: { enabled: true,  start: '08:00', end: '18:00' },
+  wed: { enabled: true,  start: '08:00', end: '18:00' },
+  thu: { enabled: true,  start: '08:00', end: '18:00' },
+  fri: { enabled: true,  start: '08:00', end: '18:00' },
+  sat: { enabled: false, start: '08:00', end: '12:00' },
+};
+
 interface Agendamento {
   id: string;
   nome_paciente: string;
@@ -155,7 +165,7 @@ const PublicAgendamento = () => {
           showEmail: data.privacy_show_email ?? true,
           showSocialMedia: data.privacy_show_social_media ?? true
         });
-        setWorkingHours(data.working_hours || null);
+        setWorkingHours(data.working_hours || defaultWorkingHours);
       } else {
         // Se não conseguir carregar, usar valores padrão
         console.log('Usando configurações padrão de privacidade');
@@ -165,7 +175,7 @@ const PublicAgendamento = () => {
           showEmail: true,
           showSocialMedia: true
         });
-        setWorkingHours(null);
+        setWorkingHours(defaultWorkingHours);
       }
     } catch (error) {
       console.error('Erro ao carregar configurações de privacidade:', error);
@@ -176,7 +186,7 @@ const PublicAgendamento = () => {
         showEmail: true,
         showSocialMedia: true
       });
-      setWorkingHours(null);
+      setWorkingHours(defaultWorkingHours);
     }
   };
 
@@ -213,14 +223,21 @@ const PublicAgendamento = () => {
 
     setSaving(true);
     try {
+      // Impedir salvar enquanto as configurações de horário não carregarem
+      if (!workingHours) {
+        alert('As configurações de horário do profissional ainda estão carregando. Tente novamente em alguns segundos.');
+        setSaving(false);
+        return;
+      }
       // Converter a data/hora para o fuso horário local
       const dataHoraLocal = new Date(form.data_hora);
 
       // Validar horário de atendimento do profissional
-      if (workingHours) {
+      {
+        const effectiveWH = workingHours ?? defaultWorkingHours;
         const weekday = dataHoraLocal.getDay(); // 0=Dom, 6=Sáb
         const keys = ['sun','mon','tue','wed','thu','fri','sat'] as const;
-        const dayCfg = (workingHours as any)[keys[weekday]] as WorkingHoursDay;
+        const dayCfg = (effectiveWH as any)[keys[weekday]] as WorkingHoursDay;
         if (!dayCfg?.enabled) {
           alert('O profissional não atende neste dia. Escolha outro dia.');
           setSaving(false);
