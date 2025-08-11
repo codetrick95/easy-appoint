@@ -271,6 +271,19 @@ const Agenda = () => {
     try {
       // Converter a data/hora para o fuso horário local
       const dataHoraLocal = new Date(form.data_hora);
+      const now = new Date();
+      // Impedir criar agendamento no passado
+      if (dataHoraLocal < now && !editAgendamento) {
+        alert('Não é possível criar agendamentos no passado.');
+        setSaving(false);
+        return;
+      }
+      // Impedir mover para o passado quando editando
+      if (editAgendamento && dataHoraLocal < now) {
+        alert('Não é possível alterar para uma data/horário no passado.');
+        setSaving(false);
+        return;
+      }
       
       // Verificar conflitos de agendamento em memória
       const conflictingAppointment = checkSchedulingConflict(

@@ -60,10 +60,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen flex w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col">
-          <header className="h-12 flex items-center border-b bg-background/70 backdrop-blur-md supports-[backdrop-filter]:bg-background/40">
+          <header className="h-12 flex items-center border-b bg-background/70 backdrop-blur-md supports-[backdrop-filter]:bg-background/40 sticky top-0 z-20">
             <SidebarTrigger className="ml-2" />
           </header>
-          <main className="flex-1 p-6">
+          <main className="flex-1 p-4 md:p-6">
             {children}
           </main>
         </div>

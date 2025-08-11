@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 import { useParams } from 'react-router-dom';
-import { startOfDay, endOfDay, parseISO } from 'date-fns';
+import { startOfDay, endOfDay, parseISO, format } from 'date-fns';
 import { 
   Calendar, 
   Clock, 
@@ -223,6 +223,19 @@ const PublicAgendamento = () => {
 
     setSaving(true);
     try {
+      // Impedir agendamentos em datas/horários passados
+      const now = new Date();
+      const selected = new Date(form.data_hora);
+      if (isNaN(selected.getTime())) {
+        alert('Informe uma data e hora válidas.');
+        setSaving(false);
+        return;
+      }
+      if (selected < now) {
+        alert('Não é permitido agendar em data/horário que já passou.');
+        setSaving(false);
+        return;
+      }
       // Impedir salvar enquanto as configurações de horário não carregarem
       if (!workingHours) {
         alert('As configurações de horário do profissional ainda estão carregando. Tente novamente em alguns segundos.');
@@ -560,6 +573,7 @@ const PublicAgendamento = () => {
                             type="datetime-local"
                             value={form.data_hora}
                             onChange={e => setForm(f => ({ ...f, data_hora: e.target.value }))}
+                          min={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
                             required
                           />
                         </div>

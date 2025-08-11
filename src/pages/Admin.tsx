@@ -29,7 +29,7 @@ export default function Admin() {
   }, [profiles]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [showOnlyActive, setShowOnlyActive] = useState(false);
+  const [showOnlyActive, setShowOnlyActive] = useState<'all' | 'active' | 'inactive'>('all');
   const [showOnlyAdmins, setShowOnlyAdmins] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -79,37 +79,86 @@ export default function Admin() {
 
   const loadProfiles = async () => {
     try {
-      console.log('Loading profiles directly from Supabase...');
-      
-      // Carrega diretamente do Supabase
-      const { data: profiles, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: true });
-      
-      console.log('Profiles loaded:', profiles);
-      console.log('Error:', error);
-      
-      if (profiles && profiles.length > 0) {
-        // Converte para o formato correto
-        const formattedProfiles = profiles.map(p => ({
-          id: p.id,
-          user_id: p.user_id,
-          nome: p.nome || p.email,
-          is_admin: p.is_admin || false,
-          active: p.active !== false,
-          link_publico: p.link_publico
-        }));
-        
+      console.log('Loading profiles via admin-panel edge function...');
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+
+      // Primeira tentativa: admin-panel (já implantada)
+      const { data, error } = await supabase.functions.invoke('admin-panel', {
+        body: { action: 'list' },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      } as any);
+
+      if (error) {
+        console.error('Error loading profiles from function admin-panel:', error);
+        throw error;
+      }
+
+      let payload: any = data as any;
+      if (typeof payload === 'string') {
+        try { payload = JSON.parse(payload); } catch {}
+      }
+      console.log('Function payload keys:', payload && typeof payload === 'object' ? Object.keys(payload) : typeof payload);
+      const rows = Array.isArray(payload)
+        ? payload
+        : (Array.isArray(payload?.data) ? payload.data : []);
+      console.log('Profiles loaded from function:', rows?.length);
+
+      if (rows && rows.length > 0) {
+        const formattedProfiles = rows.map((p: any) => {
+          const nome = p.nome ?? p.email ?? p.user_email ?? 'Sem nome';
+          const isAdmin = Boolean(p.is_admin ?? p.admin ?? false);
+          const active = (p.active ?? p.is_active ?? true) !== false;
+          return {
+            id: p.id ?? p.profile_id ?? p.user_id,
+            user_id: p.user_id ?? p.id,
+            nome,
+            is_admin: isAdmin,
+            active,
+            link_publico: p.link_publico ?? p.public_link,
+          } as AdminProfile;
+        });
+
         setProfiles(formattedProfiles);
         console.log('SUCCESS: Loaded', formattedProfiles.length, 'profiles');
       } else {
-        console.log('No profiles found');
-        setProfiles([]);
+        console.log('No profiles returned by admin-panel, falling back to direct query...');
+        const { data: direct } = await supabase
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: true });
+        const formattedProfiles = (direct ?? []).map((p: any) => ({
+          id: p.id,
+          user_id: p.user_id,
+          nome: p.nome || p.email,
+          is_admin: Boolean(p.is_admin),
+          active: p.active !== false,
+          link_publico: p.link_publico,
+        }));
+        setProfiles(formattedProfiles);
       }
     } catch (error) {
-      console.error('Error loading profiles:', error);
-      setProfiles([]);
+      console.error('Error loading profiles (admin-panel):', error);
+      // Fallback final: tentativa direta para não deixar vazio
+      try {
+        console.log('Trying direct query fallback due to function error...');
+        const { data: direct } = await supabase
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: true });
+        const formattedProfiles = (direct ?? []).map((p: any) => ({
+          id: p.id,
+          user_id: p.user_id,
+          nome: p.nome || p.email,
+          is_admin: Boolean(p.is_admin),
+          active: p.active !== false,
+          link_publico: p.link_publico,
+        }));
+        setProfiles(formattedProfiles);
+      } catch (e) {
+        console.error('Direct query also failed:', e);
+        setProfiles([]);
+      }
     }
   };
 
@@ -131,13 +180,13 @@ export default function Admin() {
   };
 
   const toggleActive = async (p: AdminProfile, active: boolean) => {
-    // Bloquear/Abrir acesso via tabela user_settings.active (ou simples flag em profiles)
     const { data: sess2 } = await supabase.auth.getSession();
     const token2 = sess2.session?.access_token;
-    await supabase.functions.invoke('admin-users', {
+    const { error } = await supabase.functions.invoke('admin-panel', {
       body: { action: 'setActive', user_id: p.user_id, active },
       headers: token2 ? { Authorization: `Bearer ${token2}` } : undefined,
     } as any);
+    if (error) console.error('Failed to setActive:', error);
     await loadProfiles();
   };
 
@@ -202,9 +251,15 @@ export default function Admin() {
               <Label>Buscar por e-mail/nome</Label>
               <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Digite para filtrar" />
             </div>
-            <div className="flex items-end gap-2">
-              <Button variant={showOnlyActive ? 'default' : 'outline'} onClick={() => setShowOnlyActive(s => !s)}>
-                {showOnlyActive ? 'Exibindo Ativos' : 'Ativos e Inativos'}
+            <div className="flex flex-wrap items-end gap-2">
+              <Button variant={showOnlyActive === 'all' ? 'default' : 'outline'} onClick={() => setShowOnlyActive('all')}>
+                Todos
+              </Button>
+              <Button variant={showOnlyActive === 'active' ? 'default' : 'outline'} onClick={() => setShowOnlyActive('active')}>
+                Ativos
+              </Button>
+              <Button variant={showOnlyActive === 'inactive' ? 'default' : 'outline'} onClick={() => setShowOnlyActive('inactive')}>
+                Inativos
               </Button>
               <Button variant={showOnlyAdmins ? 'default' : 'outline'} onClick={() => setShowOnlyAdmins(s => !s)}>
                 {showOnlyAdmins ? 'Somente Admins' : 'Todos os Perfis'}
@@ -217,7 +272,7 @@ export default function Admin() {
           </div>
 
           {(profiles
-            .filter(p => (showOnlyActive ? p.active : true))
+            .filter(p => (showOnlyActive === 'active' ? p.active : showOnlyActive === 'inactive' ? !p.active : true))
             .filter(p => (showOnlyAdmins ? p.is_admin : true))
             .filter(p => {
               const q = search.trim().toLowerCase();
@@ -225,20 +280,28 @@ export default function Admin() {
               return p.nome?.toLowerCase()?.includes(q);
             })
           ).map(p => (
-            <div key={p.id} className="flex items-center justify-between border rounded p-3">
+            <div key={p.id} className="flex items-center justify-between border rounded p-3 bg-white/50">
               <div>
                 <div className="font-medium">{p.nome}</div>
                 <div className="text-sm flex gap-2">
-                  <Badge variant="secondary">{p.is_admin ? 'Admin' : 'Cliente'}</Badge>
-                  <Badge variant={p.active ? 'secondary' : 'destructive'}>{p.active ? 'Ativo' : 'Bloqueado'}</Badge>
-                  {p.link_publico && <Badge variant="secondary">Link: {p.link_publico}</Badge>}
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${p.is_admin ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                    {p.is_admin ? 'Admin' : 'Cliente'}
+                  </span>
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${p.active ? 'bg-green-100 text-green-700' : 'bg-rose-100 text-rose-700'}`}>
+                    {p.active ? 'Ativo' : 'Inativo'}
+                  </span>
+                  {p.link_publico && (
+                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700">
+                      Link: {p.link_publico}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={async () => {
                   const { data: sess } = await supabase.auth.getSession();
                   const token = sess.session?.access_token;
-                  await supabase.functions.invoke('admin-users', {
+                  await supabase.functions.invoke('admin-panel', {
                     body: { action: 'setAdmin', user_id: p.user_id, is_admin: !p.is_admin },
                     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
                   } as any);
@@ -252,7 +315,7 @@ export default function Admin() {
                 <Button variant="destructive" onClick={async () => {
                   const { data: sess3 } = await supabase.auth.getSession();
                   const token3 = sess3.session?.access_token;
-                  await supabase.functions.invoke('admin-users', {
+                  await supabase.functions.invoke('admin-panel', {
                     body: { action: 'delete', user_id: p.user_id },
                     headers: token3 ? { Authorization: `Bearer ${token3}` } : undefined,
                   } as any);

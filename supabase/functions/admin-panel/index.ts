@@ -4,6 +4,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Content-Type": "application/json",
 };
 
 serve(async (req: Request) => {
@@ -93,6 +95,36 @@ serve(async (req: Request) => {
         status: 200, 
         headers: { ...corsHeaders } 
       });
+    }
+
+    if (action === "setActive") {
+      const { user_id, active } = body ?? {};
+      if (!user_id || typeof active !== "boolean") {
+        return new Response(JSON.stringify({ error: "Missing user_id/active" }), { status: 400, headers: { ...corsHeaders } });
+      }
+      const { error } = await service.from("profiles").update({ active }).eq("user_id", user_id);
+      if (error) throw error;
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...corsHeaders } });
+    }
+
+    if (action === "setAdmin") {
+      const { user_id, is_admin } = body ?? {};
+      if (!user_id || typeof is_admin !== "boolean") {
+        return new Response(JSON.stringify({ error: "Missing user_id/is_admin" }), { status: 400, headers: { ...corsHeaders } });
+      }
+      const { error } = await service.from("profiles").update({ is_admin }).eq("user_id", user_id);
+      if (error) throw error;
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...corsHeaders } });
+    }
+
+    if (action === "delete") {
+      const { user_id } = body ?? {};
+      if (!user_id) {
+        return new Response(JSON.stringify({ error: "Missing user_id" }), { status: 400, headers: { ...corsHeaders } });
+      }
+      const { error } = await service.auth.admin.deleteUser(user_id);
+      if (error) throw error;
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...corsHeaders } });
     }
 
     return new Response(JSON.stringify({ error: "Invalid action" }), { 
