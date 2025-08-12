@@ -69,6 +69,41 @@ const Agenda = () => {
     return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
   };
 
+  // Horários de atendimento do profissional (do próprio usuário)
+  type WorkingHoursDay = { enabled: boolean; start: string; end: string };
+  type WorkingHours = {
+    sun: WorkingHoursDay; mon: WorkingHoursDay; tue: WorkingHoursDay; wed: WorkingHoursDay;
+    thu: WorkingHoursDay; fri: WorkingHoursDay; sat: WorkingHoursDay;
+  };
+  const defaultWorkingHours: WorkingHours = {
+    sun: { enabled: true, start: '08:00', end: '18:00' },
+    mon: { enabled: true, start: '08:00', end: '18:00' },
+    tue: { enabled: true, start: '08:00', end: '18:00' },
+    wed: { enabled: true, start: '08:00', end: '18:00' },
+    thu: { enabled: true, start: '08:00', end: '18:00' },
+    fri: { enabled: true, start: '08:00', end: '18:00' },
+    sat: { enabled: true, start: '08:00', end: '18:00' },
+  };
+  const [workingHours, setWorkingHours] = useState<WorkingHours | null>(null);
+
+  // Carregar working_hours do Supabase para o usuário logado
+  useEffect(() => {
+    const loadWorkingHours = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from('user_settings')
+        .select('working_hours')
+        .eq('user_id', user.id)
+        .single();
+      if (data?.working_hours && typeof data.working_hours === 'object') {
+        setWorkingHours(data.working_hours as WorkingHours);
+      } else {
+        setWorkingHours(defaultWorkingHours);
+      }
+    };
+    loadWorkingHours();
+  }, [user]);
+
   // Função para verificar conflitos de agendamento (apenas sobreposição real)
   const checkSchedulingConflict = (dataHora: Date, duracaoMinutos: number, excludeId?: string) => {
     const startTime = dataHora;
@@ -283,6 +318,29 @@ const Agenda = () => {
         alert('Não é possível alterar para uma data/horário no passado.');
         setSaving(false);
         return;
+      }
+
+      // Validar horário de atendimento do profissional (respeitar Configurações)
+      {
+        const effectiveWH = workingHours ?? defaultWorkingHours;
+        const weekday = dataHoraLocal.getDay(); // 0=Dom, 6=Sáb
+        const keys = ['sun','mon','tue','wed','thu','fri','sat'] as const;
+        const dayCfg = (effectiveWH as any)[keys[weekday]] as WorkingHoursDay | undefined;
+        if (!dayCfg || dayCfg.enabled === false) {
+          alert('Seu horário de atendimento indica que você não atende neste dia. Ajuste em Configurações > Horário de Atendimento.');
+          setSaving(false);
+          return;
+        }
+        const [sh, sm] = dayCfg.start.split(':').map(Number);
+        const [eh, em] = dayCfg.end.split(':').map(Number);
+        const startMinutes = sh * 60 + sm;
+        const endMinutes = eh * 60 + em;
+        const curMinutes = dataHoraLocal.getHours() * 60 + dataHoraLocal.getMinutes();
+        if (curMinutes < startMinutes || curMinutes >= endMinutes) {
+          alert(`Horário fora do seu atendimento (${dayCfg.start} - ${dayCfg.end}). Ajuste em Configurações > Horário de Atendimento.`);
+          setSaving(false);
+          return;
+        }
       }
       
       // Verificar conflitos de agendamento em memória

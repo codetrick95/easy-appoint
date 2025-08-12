@@ -61,7 +61,10 @@ export function AppSidebar() {
     <Sidebar className={collapsed ? "w-14" : "w-64"} collapsible="icon">
       <SidebarHeader className="p-4">
         {!collapsed && (
-          <Logo size="md" />
+          <div className="flex items-center gap-2">
+            <Logo size="md" />
+            <span className="text-sm text-muted-foreground">Menu</span>
+          </div>
         )}
         {collapsed && (
           <div className="flex justify-center">

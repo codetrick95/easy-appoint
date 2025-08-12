@@ -63,13 +63,13 @@ type WorkingHours = {
 };
 
 const defaultWorkingHours: WorkingHours = {
-  sun: { enabled: false, start: '08:00', end: '18:00' },
-  mon: { enabled: true,  start: '08:00', end: '18:00' },
-  tue: { enabled: true,  start: '08:00', end: '18:00' },
-  wed: { enabled: true,  start: '08:00', end: '18:00' },
-  thu: { enabled: true,  start: '08:00', end: '18:00' },
-  fri: { enabled: true,  start: '08:00', end: '18:00' },
-  sat: { enabled: false, start: '08:00', end: '12:00' },
+  sun: { enabled: true, start: '08:00', end: '18:00' },
+  mon: { enabled: true, start: '08:00', end: '18:00' },
+  tue: { enabled: true, start: '08:00', end: '18:00' },
+  wed: { enabled: true, start: '08:00', end: '18:00' },
+  thu: { enabled: true, start: '08:00', end: '18:00' },
+  fri: { enabled: true, start: '08:00', end: '18:00' },
+  sat: { enabled: true, start: '08:00', end: '18:00' },
 };
 
 interface Agendamento {
@@ -149,6 +149,27 @@ const PublicAgendamento = () => {
     }
   };
 
+  // Recarrega working_hours sob demanda (usado ao abrir o modal)
+  const reloadWorkingHours = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('working_hours')
+        .eq('user_id', userId)
+        .single();
+      if (!error && data?.working_hours && typeof data.working_hours === 'object') {
+        setWorkingHours(data.working_hours);
+      }
+    } catch {}
+  };
+
+  // Quando abrir o modal, recarregar working_hours para refletir alterações feitas nas Configurações abertas em outra aba
+  useEffect(() => {
+    if (modalOpen && profile) {
+      reloadWorkingHours(profile.user_id);
+    }
+  }, [modalOpen, profile]);
+
   const loadPublicSettings = async (userId: string) => {
     try {
       // Usar o cliente Supabase sem autenticação para acessar configurações públicas
@@ -165,7 +186,12 @@ const PublicAgendamento = () => {
           showEmail: data.privacy_show_email ?? true,
           showSocialMedia: data.privacy_show_social_media ?? true
         });
-        setWorkingHours(data.working_hours || defaultWorkingHours);
+        // Se não houver working_hours (usuário novo), cai no default sem habilitar fins de semana
+        if (data.working_hours && typeof data.working_hours === 'object') {
+          setWorkingHours(data.working_hours);
+        } else {
+          setWorkingHours(defaultWorkingHours);
+        }
       } else {
         // Se não conseguir carregar, usar valores padrão
         console.log('Usando configurações padrão de privacidade');
@@ -245,13 +271,27 @@ const PublicAgendamento = () => {
       // Converter a data/hora para o fuso horário local
       const dataHoraLocal = new Date(form.data_hora);
 
+      // Busca mais recente de working_hours imediatamente antes de validar
+      let effectiveWH = workingHours;
+      try {
+        const { data: freshWH } = await supabase
+          .from('user_settings')
+          .select('working_hours')
+          .eq('user_id', profile.user_id)
+          .single();
+        if (freshWH?.working_hours && typeof freshWH.working_hours === 'object') {
+          effectiveWH = freshWH.working_hours as any;
+        }
+      } catch {}
+      if (!effectiveWH) effectiveWH = defaultWorkingHours;
+
       // Validar horário de atendimento do profissional
       {
-        const effectiveWH = workingHours ?? defaultWorkingHours;
         const weekday = dataHoraLocal.getDay(); // 0=Dom, 6=Sáb
         const keys = ['sun','mon','tue','wed','thu','fri','sat'] as const;
         const dayCfg = (effectiveWH as any)[keys[weekday]] as WorkingHoursDay;
-        if (!dayCfg?.enabled) {
+        // Se não tiver config, considera desabilitado (seguro para novos usuários)
+        if (!dayCfg || dayCfg.enabled === false) {
           alert('O profissional não atende neste dia. Escolha outro dia.');
           setSaving(false);
           return;

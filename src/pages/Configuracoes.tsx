@@ -111,13 +111,13 @@ const Configuracoes = () => {
   };
 
   const defaultWorkingHours: WorkingHours = {
-    sun: { enabled: false, start: '08:00', end: '18:00' },
-    mon: { enabled: true,  start: '08:00', end: '18:00' },
-    tue: { enabled: true,  start: '08:00', end: '18:00' },
-    wed: { enabled: true,  start: '08:00', end: '18:00' },
-    thu: { enabled: true,  start: '08:00', end: '18:00' },
-    fri: { enabled: true,  start: '08:00', end: '18:00' },
-    sat: { enabled: false, start: '08:00', end: '12:00' },
+    sun: { enabled: true, start: '08:00', end: '18:00' },
+    mon: { enabled: true, start: '08:00', end: '18:00' },
+    tue: { enabled: true, start: '08:00', end: '18:00' },
+    wed: { enabled: true, start: '08:00', end: '18:00' },
+    thu: { enabled: true, start: '08:00', end: '18:00' },
+    fri: { enabled: true, start: '08:00', end: '18:00' },
+    sat: { enabled: true, start: '08:00', end: '18:00' },
   };
 
   const [workingHours, setWorkingHours] = useState<WorkingHours>(defaultWorkingHours);
