@@ -82,8 +82,17 @@ const Auth = () => {
               <button type="button" onClick={handleResetPassword} className="font-semibold text-primary">Esqueci minha senha</button>
             </div>
             <div className="text-center text-sm mt-2 text-muted-foreground">
-              Não tem acesso? <a href="mailto:contato@tricktime.app" className="font-semibold text-primary">Falar com vendas</a>
-            </div>
+  Não tem acesso? 
+  <a 
+    href="https://wa.me/5555996698829" 
+    target="_blank" 
+    rel="noopener noreferrer" 
+    className="font-semibold text-primary"
+  >
+    Falar com vendas
+  </a>
+</div>
+
           </form>
         </CardContent>
       </Card>
